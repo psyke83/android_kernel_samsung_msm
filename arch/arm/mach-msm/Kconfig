@@ -1409,4 +1409,12 @@ config MSM_SCHED_FAST_CPU_ONLINE
 	  Bypass scheduler domain reconstruction when onlining the second
 	  CPU on 8X60 to speed up operation.
 
+config OVERCLOCK_AHB
+	bool "Overclock the AHB-bus with 50% for all frequencies from 480MHz and above."
+	depends on MSM_CPU_FREQ_SET_MIN_MAX
+	default n
+	help
+	  Increases the speed of memory read/writes but can cause instability.
+	  If unsure, choose N.
+
 endif
