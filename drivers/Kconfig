@@ -122,5 +122,5 @@ source "drivers/platform/Kconfig"
 
 source "drivers/dpram/Kconfig"
 
-#@source "drivers/param/Kconfig"
+source "drivers/param/Kconfig"
 endmenu
