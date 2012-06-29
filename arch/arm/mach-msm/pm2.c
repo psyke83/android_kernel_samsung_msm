@@ -61,10 +61,15 @@
 #include "pm.h"
 #include "spm.h"
 #include "sirc.h"
+#include "proc_comm.h"
 
+// hsil
+//#include "../../../drivers/video/msm/mdp.h"
 /******************************************************************************
  * Debug Definitions
  *****************************************************************************/
+
+int is_modem_reset = 0; //for ramdump issue in factory reset 
 
 enum {
 	MSM_PM_DEBUG_SUSPEND = 1U << 0,
@@ -1587,20 +1592,59 @@ arch_idle_exit:
  *      -ETIMEDOUT: timed out waiting for modem's handshake
  *      0: success
  */
+
+// hsil
+extern what_clk[103];
+extern req_clk[103];
+//extern void mdp_pipe_ctrl(MDP_BLOCK_TYPE block, MDP_BLOCK_POWER_STATE state,boolean isr);
+
 static int msm_pm_enter(suspend_state_t state)
 {
 	bool allow[MSM_PM_SLEEP_MODE_NR];
 	uint32_t sleep_limit = SLEEP_LIMIT_NONE;
 	int ret;
 	int i;
+	static struct clk *tmp_clk;
 
 #ifdef CONFIG_MSM_IDLE_STATS
 	DECLARE_BITMAP(clk_ids, MAX_NR_CLKS);
 	int64_t period = 0;
 	int64_t time = 0;
-
+	
+	// hsil
+#if 0	
+	for (i=0; i<5; i++)
+		mdp_pipe_ctrl(MDP_DMA2_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	mdp_pipe_ctrl(MDP_MASTER_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
+        for (i=0; i<103; i++)
+        {
+                if (what_clk[i] == 1)
+                {
+                        printk("%s : what clk : #%d clock is alive!!!!!!!!!!!!!!!!!!!!!!\n", __func__, i);
+                }
+                if (req_clk[i] == 1)
+		{
+                        printk("%s : req clk : #%d clock is alive!!!!!!!!!!!!!!!!!!!!!!\n", __func__, i);
+                        if (i==42)
+                        {
+                                tmp_clk = clk_get(NULL, "mdp_lcdc_pclk_clk");
+                                clk_disable(tmp_clk);   
+                        }
+                        if (i==43)
+                        {
+                                tmp_clk = clk_get(NULL, "mdp_lcdc_pad_pclk_clk");
+                                clk_disable(tmp_clk);   
+                        }
+		}
+        }
+	
 	time = msm_timer_get_sclk_time(&period);
 	ret = msm_clock_require_tcxo(clk_ids, MAX_NR_CLKS);
+//	printk("++++++++++++++++++++++++++++++++++++\n");
+//	printk("[HSIL] %s : ret = %d\n", __func__, ret);
+//	printk("++++++++++++++++++++++++++++++++++++\n");
+
 #elif defined(CONFIG_CLOCK_BASED_SLEEP_LIMIT)
 	ret = msm_clock_require_tcxo(NULL, 0);
 #endif /* CONFIG_MSM_IDLE_STATS */
@@ -1734,19 +1778,47 @@ static struct platform_suspend_ops msm_pm_ops = {
 
 static uint32_t restart_reason = 0x776655AA;
 
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
+struct smem_info {
+	    unsigned int info;
+};
+ 
+extern struct smem_info *smem_flag;
+extern void request_phone_power_off_reset(int flag);
+int power_off_done;
+int (*set_recovery_mode)(void);
+EXPORT_SYMBOL(set_recovery_mode);
+int (*set_recovery_mode_done)(void);
+EXPORT_SYMBOL(set_recovery_mode_done);
+#endif
+
 static void msm_pm_power_off(void)
 {
 	msm_rpcrouter_close();
+#if !defined(CONFIG_MACH_EUROPA) && !defined(CONFIG_MACH_CALLISTO) && !defined(CONFIG_MACH_COOPER) && !defined(CONFIG_MACH_BENI) && !defined(CONFIG_MACH_TASS) && !defined(CONFIG_MACH_LUCAS)
 	msm_proc_comm(PCOM_POWER_DOWN, 0, 0);
+#else
+	smem_flag->info = 0x0;
+	printk("request_phone_power_off\n");
+	request_phone_power_off_reset(1);
+	power_off_done = 1;
+	printk("Do Nothing!!\n");
+#endif
 	for (;;)
 		;
 }
 
 static void msm_pm_restart(char str, const char *cmd)
 {
+	is_modem_reset = 1;
+	pr_err("is_modem_reset = %d\n",is_modem_reset);
 	msm_rpcrouter_close();
-	msm_proc_comm(PCOM_RESET_CHIP, &restart_reason, 0);
-
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
+	smem_flag->info = 0x0;
+#endif
+	printk("send PCOM_RESET_CHIP\n");
+        msm_proc_comm(PCOM_RESET_CHIP_IMM, &restart_reason, 0);
+	printk("Do Nothing!!\n");
 	for (;;)
 		;
 }
@@ -1754,12 +1826,24 @@ static void msm_pm_restart(char str, const char *cmd)
 static int msm_reboot_call
 	(struct notifier_block *this, unsigned long code, void *_cmd)
 {
+    printk("msm_reboot_call++\n");	
 	if ((code == SYS_RESTART) && _cmd) {
 		char *cmd = _cmd;
 		if (!strcmp(cmd, "bootloader")) {
 			restart_reason = 0x77665500;
 		} else if (!strcmp(cmd, "recovery")) {
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS) 
+			set_recovery_mode();
+#endif
 			restart_reason = 0x77665502;
+		} else if (!strcmp(cmd, "recovery_done")) { 
+            printk("recovery_done \n");
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS) 
+            set_recovery_mode_done();
+#endif
+			restart_reason = 0x77665503;
+		} else if (!strcmp(cmd, "download")) {
+			restart_reason = 0x776655FF;
 		} else if (!strcmp(cmd, "eraseflash")) {
 			restart_reason = 0x776655EF;
 		} else if (!strncmp(cmd, "oem-", 4)) {
@@ -1794,6 +1878,7 @@ static int __init msm_pm_init(void)
 	struct proc_dir_entry *d_entry;
 #endif
 	int ret;
+	int id = 0;
 #ifdef CONFIG_CPU_V7
 	pgd_t *pc_pgd;
 	pmd_t *pmd;
@@ -1873,6 +1958,8 @@ static int __init msm_pm_init(void)
 		d_entry->data = NULL;
 	}
 #endif
+
+	msm_proc_comm(PCOM_CUSTOMER_CMD3, &id, 0);
 
 	return 0;
 }

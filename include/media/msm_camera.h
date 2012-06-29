@@ -110,6 +110,10 @@
 #define MSM_CAM_IOCTL_SENSOR_IO_CFG \
 	_IOW(MSM_CAM_IOCTL_MAGIC, 21, struct sensor_cfg_data *)
 
+#define MSM_CAMERA_LED_OFF  0
+#define MSM_CAMERA_LED_LOW  1
+#define MSM_CAMERA_LED_HIGH 2
+
 #define MSM_CAM_IOCTL_FLASH_LED_CFG \
 	_IOW(MSM_CAM_IOCTL_MAGIC, 22, unsigned *)
 
@@ -158,7 +162,7 @@
 #define MSM_CAMERA_LED_OFF  0
 #define MSM_CAMERA_LED_LOW  1
 #define MSM_CAMERA_LED_HIGH 2
-
+  
 #define MSM_CAMERA_STROBE_FLASH_NONE 0
 #define MSM_CAMERA_STROBE_FLASH_XENON 1
 
@@ -172,6 +176,18 @@
 
 #define MSM_CAM_CTRL_CMD_DONE  0
 #define MSM_CAM_SENSOR_VFE_CMD 1
+
+#if 1//PCAM
+typedef struct{
+	unsigned short mode;
+	unsigned short address;
+	unsigned short value_1;
+	unsigned short value_2;
+	unsigned short value_3;
+} ioctl_pcam_info_8bit;
+
+#define MSM_CAM_IOCTL_PCAM_CTRL_8BIT   _IOWR(MSM_CAM_IOCTL_MAGIC, 40, ioctl_pcam_info_8bit)
+#endif//PCAM
 
 /*****************************************************
  *  structure
@@ -397,6 +413,29 @@ struct outputCfg {
 #define OUTPUT_TYPE_V		(1<<3)
 #define OUTPUT_TYPE_L		(1<<4)
 
+#define CAMERA_BRIGTHNESS_0		0
+#define CAMERA_BRIGTHNESS_1		1
+#define CAMERA_BRIGTHNESS_2		2
+#define CAMERA_BRIGTHNESS_3		3
+#define CAMERA_BRIGTHNESS_4		4
+#define CAMERA_BRIGTHNESS_5		5
+#define CAMERA_BRIGTHNESS_6		6
+
+#define CAMERA_WB_AUTO				0
+#define CAMERA_WB_INCANDESCENT		1
+#define CAMERA_WB_FLUORESCENT		2
+#define CAMERA_WB_DAYLIGHT			3
+#define CAMERA_WB_CLOUDY_DAYLIGHT	4
+
+#define CAMERA_ISOValue_AUTO		0
+#define CAMERA_ISOValue_100		1
+#define CAMERA_ISOValue_200		2
+#define CAMERA_ISOValue_400		3
+
+#define CAMERA_AEC_CENTER_WEIGHTED		1
+#define CAMERA_AEC_SPOT_METERING		2
+#define CAMERA_AEC_FRAME_AVERAGE		0
+
 struct fd_roi_info {
 	void *info;
 	int info_len;
@@ -482,7 +521,9 @@ struct msm_snapshot_pp_status {
 #define CFG_GET_AF_MAX_STEPS		26
 #define CFG_GET_PICT_MAX_EXP_LC		27
 #define CFG_SEND_WB_INFO    28
-#define CFG_MAX 			29
+// Features for EUROPA
+#define CFG_SET_ISO			29
+#define CFG_MAX 30
 
 #define MOVE_NEAR	0
 #define MOVE_FAR	1
@@ -541,6 +582,13 @@ struct sensor_cfg_data {
 
 	union {
 		int8_t effect;
+		
+#if defined(CONFIG_MACH_EUROPA)
+		int8_t brightness;
+		int8_t whitebalance;
+		int8_t iso;
+		int8_t metering;
+#endif
 		uint8_t lens_shading;
 		uint16_t prevl_pf;
 		uint16_t prevp_pl;
@@ -600,4 +648,175 @@ struct msm_camsensor_info {
 	uint8_t flash_enabled;
 	int8_t total_steps;
 };
+
+#define EXT_CFG_AUTO_TUNNING               0
+#define EXT_CFG_SDCARD_DETECT              1
+#define EXT_CFG_GET_INFO		        2
+#define EXT_CFG_FRAME_CONTROL              3
+#define EXT_CFG_AF_CONTROL                 4
+#define EXT_CFG_EFFECT_CONTROL             5
+#define EXT_CFG_WB_CONTROL                 6
+#define EXT_CFG_BR_CONTROL                 7
+#define EXT_CFG_ISO_CONTROL                8
+#define EXT_CFG_METERING_CONTROL           9
+#define EXT_CFG_SCENE_CONTROL		10
+#define EXT_CFG_AE_AWB_CONTROL		11
+#define EXT_CFG_CR_CONTROL                 12
+#define EXT_CFG_SA_CONTROL                 13
+#define EXT_CFG_SP_CONTROL                 14
+#define EXT_CFG_CPU_CONTROL                15
+#define EXT_CFG_DTP_CONTROL                16
+#define EXT_CFG_SNAPSHOT_SIZE_CONTROL		17
+#define EXT_CFG_SET_CAPTURE_MODE 18
+#define EXT_CFG_SET_FLASH_MODE 19
+#define EXT_CFG_AUTO_CONTRAST_CONTROL 20
+#define EXT_CFG_JPEG_QUALITY_CONTROL 21
+#define EXT_CFG_ZOOM_CONTROL 22
+#define EXT_CFG_CAM_MODE_CONTROL 23
+#define EXT_CFG_PREVIEW_SIZE_CONTROL		24
+#define EXT_CFG_FLASH_INFO		        25
+#define EXT_CFG_LUX_INFO		        26
+#define EXT_CFG_SENSOR_RESET		        27
+
+#define EXT_CFG_CAM_MODE_CAMERA 0
+#define EXT_CFG_CAM_MODE_CAMCORDER 1
+#define EXT_CFG_CAM_MODE_FACTORY_TEST 2
+
+#define EXT_CFG_JPEG_QUALITY_SUPERFINE 0
+#define EXT_CFG_JPEG_QUALITY_FINE 1
+#define EXT_CFG_JPEG_QUALITY_NORMAL 2
+
+#define EXT_CFG_AUTO_CONTRAST_ON 0
+#define EXT_CFG_AUTO_CONTRAST_OFF 1
+
+#define EXT_CFG_FRAME_AUTO			0
+#define EXT_CFG_FRAME_FIX_15		15
+#define EXT_CFG_FRAME_FIX_20		20
+#define EXT_CFG_FRAME_FIX_24		24
+#define EXT_CFG_FRAME_FIX_25		25
+#define EXT_CFG_FRAME_FIX_30		30
+
+#define EXT_CFG_EFFECT_NORMAL		0
+#define EXT_CFG_EFFECT_NEGATIVE		1
+#define EXT_CFG_EFFECT_MONO		2
+#define EXT_CFG_EFFECT_SEPIA		3	
+
+#define EXT_CFG_WB_AUTO                    0
+#define EXT_CFG_WB_DAYLIGHT                1
+#define EXT_CFG_WB_CLOUDY                  2
+#define EXT_CFG_WB_FLUORESCENT             3
+#define EXT_CFG_WB_INCANDESCENT            4
+
+#define EXT_CFG_BR_STEP_P_4                8
+#define EXT_CFG_BR_STEP_P_3                7
+#define EXT_CFG_BR_STEP_P_2                6
+#define EXT_CFG_BR_STEP_P_1                5
+#define EXT_CFG_BR_STEP_0                  4
+#define EXT_CFG_BR_STEP_M_1                3
+#define EXT_CFG_BR_STEP_M_2                2
+#define EXT_CFG_BR_STEP_M_3                1
+#define EXT_CFG_BR_STEP_M_4                0
+
+#define EXT_CFG_CR_STEP_P_2                4
+#define EXT_CFG_CR_STEP_P_1                3
+#define EXT_CFG_CR_STEP_0                  2
+#define EXT_CFG_CR_STEP_M_1                1
+#define EXT_CFG_CR_STEP_M_2                0
+
+#define EXT_CFG_SA_STEP_P_2                4
+#define EXT_CFG_SA_STEP_P_1                3
+#define EXT_CFG_SA_STEP_0                  2
+#define EXT_CFG_SA_STEP_M_1                1
+#define EXT_CFG_SA_STEP_M_2                0
+
+#define EXT_CFG_SP_STEP_P_2                4
+#define EXT_CFG_SP_STEP_P_1                3
+#define EXT_CFG_SP_STEP_0                  2
+#define EXT_CFG_SP_STEP_M_1                1
+#define EXT_CFG_SP_STEP_M_2                0
+
+#define EXT_CFG_ISO_AUTO			0
+#define EXT_CFG_ISO_50			1
+#define EXT_CFG_ISO_100			2
+#define EXT_CFG_ISO_200			3
+#define EXT_CFG_ISO_400			4
+
+#define EXT_CFG_METERING_NORMAL		0 //CENTER?
+#define EXT_CFG_METERING_SPOT		1
+#define EXT_CFG_METERING_CENTER		2
+
+#define EXT_CFG_SCENE_OFF			0
+#define EXT_CFG_SCENE_PORTRAIT		1
+#define EXT_CFG_SCENE_LANDSCAPE		2
+#define EXT_CFG_SCENE_SPORTS		3
+#define EXT_CFG_SCENE_PARTY		4
+#define EXT_CFG_SCENE_BEACH		5
+#define EXT_CFG_SCENE_SUNSET		6
+#define EXT_CFG_SCENE_DAWN			7
+#define EXT_CFG_SCENE_FALL			8
+#define EXT_CFG_SCENE_NIGHTSHOT		9
+#define EXT_CFG_SCENE_BACKLIGHT		10
+#define EXT_CFG_SCENE_FIREWORK		11
+#define EXT_CFG_SCENE_TEXT			12
+#define EXT_CFG_SCENE_CANDLE		13
+
+#define EXT_CFG_AF_CHECK_STATUS		0
+#define EXT_CFG_AF_OFF			1
+#define EXT_CFG_AF_SET_NORMAL		2
+#define EXT_CFG_AF_SET_MACRO		3
+#define EXT_CFG_AF_DO			4
+#define EXT_CFG_AF_SET_MANUAL	5
+#define EXT_CFG_AF_CHECK_2nd_STATUS	6
+#define EXT_CFG_AF_SET_AE_FOR_FLASH	7
+#define EXT_CFG_AF_BACK_AE_FOR_FLASH	8
+#define EXT_CFG_AF_CHECK_AE_STATUS	9
+#define EXT_CFG_AF_POWEROFF 	10
+
+#define EXT_CFG_AF_PROGRESS                1
+#define EXT_CFG_AF_SUCCESS                 2
+#define EXT_CFG_AF_LOWCONF                 3 //Fail
+#define EXT_CFG_AF_CANCELED                4
+#define EXT_CFG_AF_TIMEOUT                 5
+#define EXT_CFG_AE_STABLE               6
+#define EXT_CFG_AE_UNSTABLE                 7
+
+#define EXT_CFG_AE_LOCK		0
+#define EXT_CFG_AE_UNLOCK		1
+#define EXT_CFG_AWB_LOCK		2
+#define EXT_CFG_AWB_UNLOCK		3
+
+#define EXT_CFG_CPU_CONSERVATIVE		0
+#define EXT_CFG_CPU_ONDEMAND		1
+#define EXT_CFG_CPU_PERFORMANCE		2
+
+#define EXT_CFG_DTP_OFF			0
+#define EXT_CFG_DTP_ON			1
+
+#define EXT_CFG_ZOOM_STEP_0	0
+#define EXT_CFG_ZOOM_STEP_1	1
+#define EXT_CFG_ZOOM_STEP_2	2
+#define EXT_CFG_ZOOM_STEP_3	3
+#define EXT_CFG_ZOOM_STEP_4	4
+#define EXT_CFG_ZOOM_STEP_5	5
+#define EXT_CFG_ZOOM_STEP_6	6
+#define EXT_CFG_ZOOM_STEP_7	7
+#define EXT_CFG_ZOOM_STEP_8	8
+
+#define EXT_CFG_SNAPSHOT_SIZE_2560x1920_5M	0
+#define EXT_CFG_SNAPSHOT_SIZE_2048x1536_3M	1
+#define EXT_CFG_SNAPSHOT_SIZE_1600x1200_2M	2
+#define EXT_CFG_SNAPSHOT_SIZE_1280x960_1M		3
+#define EXT_CFG_SNAPSHOT_SIZE_640x480_VGA		4
+#define EXT_CFG_SNAPSHOT_SIZE_320x240_QVGA		5
+
+#define EXT_CFG_PREVIEW_SIZE_720x480_D1	0
+#define EXT_CFG_PREVIEW_SIZE_640x480_VGA	1
+#define EXT_CFG_PREVIEW_SIZE_320x240_QVGA	2
+#define EXT_CFG_PREVIEW_SIZE_176x144_QCIF	3
+
+#define EXT_CFG_FLASH_ON		0
+#define EXT_CFG_FLASH_OFF	1
+#define EXT_CFG_FLASH_AUTO	2
+#define EXT_CFG_FLASH_TURN_ON 3
+#define EXT_CFG_FLASH_TURN_OFF 4
 #endif /* __LINUX_MSM_CAMERA_H */

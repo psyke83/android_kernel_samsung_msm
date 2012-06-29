@@ -275,7 +275,7 @@ config LIBRA_SDIOIF
 	select WEXT_CORE
 	select WEXT_SPY
 	depends on MMC_MSM
-	default m
+	default n
 	---help---
 	  A driver for Qualcomm WLAN SDIO Libra chipset.
 

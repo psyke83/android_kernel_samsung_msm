@@ -795,6 +795,75 @@ rndis_unbind(struct usb_configuration *c, struct usb_function *f)
 	kfree(rndis);
 }
 
+static struct usb_descriptor_header *
+rndis_usb_find_decriptor(
+	struct usb_descriptor_header **src,
+	struct usb_descriptor_header **copy,
+	struct usb_descriptor_header *match
+)
+{
+	while (*src) {
+		if (*src == (void *) match)
+			return (void *)*copy;
+		src++;
+		copy++;
+	}
+	return NULL;
+}
+
+static int
+rndis_interface_id_set(struct usb_configuration * c, struct usb_function *f, int intf_id)
+{
+	struct f_rndis		*rndis = func_to_rndis(f);
+	struct usb_descriptor_header *descriptor;
+	
+	if(rndis->ctrl_id > intf_id){
+		rndis->ctrl_id = intf_id;
+		if (gadget_is_dualspeed(c->cdev->gadget)){
+			descriptor = rndis_usb_find_decriptor(eth_hs_function,
+			f->hs_descriptors, (struct usb_descriptor_header *)&rndis_iad_descriptor);
+			if(descriptor)
+				((struct usb_interface_assoc_descriptor *) descriptor)->bFirstInterface = intf_id;
+			descriptor = rndis_usb_find_decriptor(eth_hs_function,
+			f->hs_descriptors, (struct usb_descriptor_header *)&rndis_union_desc);
+			if(descriptor)
+				((struct usb_cdc_union_desc *) descriptor)->bMasterInterface0 = intf_id;
+		}
+		else{
+			descriptor = rndis_usb_find_decriptor(eth_fs_function,
+			f->descriptors, (struct usb_descriptor_header *)&rndis_iad_descriptor);
+			if(descriptor)
+				((struct usb_interface_assoc_descriptor *) descriptor)->bFirstInterface = intf_id;
+			descriptor = rndis_usb_find_decriptor(eth_fs_function,
+			f->descriptors, (struct usb_descriptor_header *)&rndis_union_desc);
+			if(descriptor)
+				((struct usb_cdc_union_desc *) descriptor)->bMasterInterface0 = intf_id;
+		}		
+		return 1;
+	}
+	else if(rndis->ctrl_id < intf_id){
+		if((rndis->data_id - rndis->ctrl_id) == 1)
+			return 0;
+		rndis->data_id= intf_id;
+		if (gadget_is_dualspeed(c->cdev->gadget)){
+			descriptor = rndis_usb_find_decriptor(eth_hs_function,
+			f->hs_descriptors, (struct usb_descriptor_header *)&rndis_union_desc);
+			if(descriptor)
+				((struct usb_cdc_union_desc *) descriptor)->bSlaveInterface0 = intf_id;
+		}
+		else{
+			descriptor = rndis_usb_find_decriptor(eth_fs_function,
+			f->descriptors, (struct usb_descriptor_header *)&rndis_union_desc);
+			if(descriptor)
+				((struct usb_cdc_union_desc *) descriptor)->bSlaveInterface0 = intf_id;
+		}	
+	}
+	else
+		return 0;
+
+	return 1;
+}
+
 /* Some controllers can't support RNDIS ... */
 static inline bool can_support_rndis(struct usb_configuration *c)
 {
@@ -881,6 +950,7 @@ rndis_bind_config(struct usb_configuration *c, u8 ethaddr[ETH_ALEN])
 #ifdef CONFIG_USB_ANDROID_RNDIS
 	/* start disabled */
 	rndis->port.func.disabled = 1;
+	rndis->port.func.intf_num_set = rndis_interface_id_set;
 #endif
 
 	status = usb_add_function(c, &rndis->port.func);

@@ -51,6 +51,9 @@
 #ifdef CONFIG_FB_MSM_LOGO
 #define INIT_IMAGE_FILE "/initlogo.rle"
 extern int load_565rle_image(char *filename);
+#ifdef CONFIG_FB_MSM_SEC_BOOTLOGO
+extern int load_565rle_image_onfb( char *filename, int start_x, int start_y);
+#endif
 #endif
 
 static unsigned char *fbram;
@@ -165,7 +168,7 @@ static void msm_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	if (!bl_lvl && value)
 		bl_lvl = 1;
 
-	msm_fb_set_backlight(mfd, bl_lvl);
+	msm_fb_set_backlight(mfd, bl_lvl, 1);
 }
 
 static struct led_classdev backlight_led = {
@@ -277,6 +280,56 @@ static void msm_fb_remove_sysfs(struct platform_device *pdev)
 	sysfs_remove_group(&mfd->fbi->dev->kobj, &msm_fb_attr_group);
 }
 
+/* Mark for GetLog */
+
+struct struct_frame_buf_mark {
+	u32 special_mark_1;
+	u32 special_mark_2;
+	u32 special_mark_3;
+	u32 special_mark_4;
+	void *p_fb;
+	u32 resX;
+	u32 resY;
+	u32 bpp;    //color depth : 16 or 24
+	u32 frames; // frame buffer count : 2
+};
+
+static struct struct_frame_buf_mark  frame_buf_mark = {
+	.special_mark_1 = (('*' << 24) | ('^' << 16) | ('^' << 8) | ('*' << 0)),
+	.special_mark_2 = (('I' << 24) | ('n' << 16) | ('f' << 8) | ('o' << 0)),
+	.special_mark_3 = (('H' << 24) | ('e' << 16) | ('r' << 8) | ('e' << 0)),
+	.special_mark_4 = (('f' << 24) | ('b' << 16) | ('u' << 8) | ('f' << 0)),
+	.p_fb   = 0,
+	
+#if defined(CONFIG_MACH_EUROPA)
+	.resX   = 256,
+	.resY   = 320,
+	.bpp    = 24,
+#endif	
+#if defined(CONFIG_MACH_CALLISTO)
+	.resX   = 256,
+	.resY   = 400,
+	.bpp    = 24,
+#endif	
+#if defined(CONFIG_MACH_COOPER)
+	.resX   = 320,
+	.resY   = 480,
+	.bpp    = 24,
+#endif	
+#if defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS)
+	.resX   = 256,
+	.resY   = 320,
+	.bpp    = 18,
+#endif	
+#if defined(CONFIG_MACH_LUCAS)
+	.resX   = 320,
+	.resY   = 240,
+	.bpp    = 24,
+#endif	
+
+	.frames = 2
+};
+
 static int msm_fb_probe(struct platform_device *pdev)
 {
 	struct msm_fb_data_type *mfd;
@@ -306,6 +359,9 @@ static int msm_fb_probe(struct platform_device *pdev)
 	if (!msm_fb_resource_initialized)
 		return -EPERM;
 
+	/* Mark for GetLog */
+	frame_buf_mark.p_fb = fbram_phys - 0x13600000;
+
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
 
 	err = pm_runtime_set_active(&pdev->dev);
@@ -322,7 +378,7 @@ static int msm_fb_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	mfd->panel_info.frame_count = 0;
-	mfd->bl_level = 0;
+	mfd->bl_level = mfd->panel_info.bl_max;
 #ifdef CONFIG_FB_MSM_OVERLAY
 	mfd->overlay_play_enable = 1;
 #endif
@@ -624,7 +680,7 @@ static void msmfb_early_resume(struct early_suspend *h)
 }
 #endif
 
-void msm_fb_set_backlight(struct msm_fb_data_type *mfd, __u32 bkl_lvl)
+void msm_fb_set_backlight(struct msm_fb_data_type *mfd, __u32 bkl_lvl, u32 save)
 {
 	struct msm_fb_panel_data *pdata;
 
@@ -632,11 +688,37 @@ void msm_fb_set_backlight(struct msm_fb_data_type *mfd, __u32 bkl_lvl)
 
 	if ((pdata) && (pdata->set_backlight)) {
 		down(&mfd->sem);
+		if ((bkl_lvl != mfd->bl_level) || (!save)) {
+			u32 old_lvl;
+
+			old_lvl = mfd->bl_level;
 		mfd->bl_level = bkl_lvl;
 		pdata->set_backlight(mfd);
+
+			if (!save)
+				mfd->bl_level = old_lvl;
+		}
 		up(&mfd->sem);
 	}
 }
+
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
+struct msm_fb_data_type *cur_mfd;
+static void bckl_func(struct work_struct *ignored); 
+static DECLARE_DELAYED_WORK(bckl_work, bckl_func);
+
+static void bckl_func(struct work_struct *ignored) 
+{
+	msm_fb_set_backlight(cur_mfd,cur_mfd->bl_level,0);
+}
+#endif
+
+#if defined(CONFIG_MACH_LUCAS)
+static bool first_boot = 1;
+#endif
+#if defined(CONFIG_MACH_TASS)
+#define GPIO_LCD_DET 94 
+#endif
 
 static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 			    boolean op_enable)
@@ -657,10 +739,30 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 	switch (blank_mode) {
 	case FB_BLANK_UNBLANK:
 		if (!mfd->panel_power_on) {
+#if defined(CONFIG_MACH_LUCAS)
+			if(first_boot) {
+				msleep(16);
+				ret = pdata->on(mfd->pdev);
+				first_boot = 0;
+				msleep(16);
+			} else {
+				ret = pdata->on(mfd->pdev);
+			}
+#else
 			msleep(16);
 			ret = pdata->on(mfd->pdev);
+			msleep(16);
+#endif
 			if (ret == 0) {
 				mfd->panel_power_on = TRUE;
+
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
+			cur_mfd = mfd;
+			schedule_delayed_work(&bckl_work, 10);
+#else
+				msm_fb_set_backlight(mfd,
+						     mfd->bl_level, 0);
+#endif
 
 /* ToDo: possible conflict with android which doesn't expect sw refresher */
 /*
@@ -689,9 +791,23 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 			mfd->panel_power_on = FALSE;
 
 			msleep(16);
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
+			msm_fb_set_backlight(mfd, 0, 0);
+#if defined(CONFIG_MACH_TASS)
+			//ESD Detection IRQ diabled
+                        disable_irq(MSM_GPIO_TO_INT(GPIO_LCD_DET));
+			printk("%s, TASS LCD off start, DISABLE ESD IRQ.\n",__func__);
+#endif
 			ret = pdata->off(mfd->pdev);
 			if (ret)
 				mfd->panel_power_on = curr_pwr_state;
+#else
+			ret = pdata->off(mfd->pdev);
+			if (ret)
+				mfd->panel_power_on = curr_pwr_state;
+
+			msm_fb_set_backlight(mfd, 0, 0);
+#endif
 
 			mfd->op_enable = TRUE;
 		}
@@ -942,6 +1058,27 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 		bpp = 3;
 		break;
 
+	//[qct patch
+	case MDP_XRGB_8888: 
+		fix->type = FB_TYPE_PACKED_PIXELS; 
+		fix->xpanstep = 1; 
+		fix->ypanstep = 1; 
+		var->vmode = FB_VMODE_NONINTERLACED; 
+		var->blue.offset = 8; 
+		var->green.offset = 16; 
+		var->red.offset = 24; 
+		var->blue.length = 8; 
+		var->green.length = 8; 
+		var->red.length = 8; 
+		var->blue.msb_right = 0; 
+		var->green.msb_right = 0; 
+		var->red.msb_right = 0; 
+		var->transp.offset = 0; 
+		var->transp.length = 8; 
+		bpp = 4; 
+	break; 
+	//]
+
 	case MDP_ARGB_8888:
 		fix->type = FB_TYPE_PACKED_PIXELS;
 		fix->xpanstep = 1;
@@ -1113,6 +1250,45 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 		return -EPERM;
 	}
 
+	#if 0 // minhyo - test screen
+	if (mfd->index == 0)
+	{
+		// draw frame
+		char    buff[256*2]={0,};
+		unsigned short *p;
+		#define SCREEN_WIDTH   256
+		int		x, y, width, height, i;
+
+		extern void lcd_disp_on_minhyodebug(void);
+		extern void lcd_ramwrite_minhyodebug(void);
+
+		// lcd_disp_on_minhyodebug();
+		// lcd_ramwrite_minhyodebug();
+
+		p = (unsigned short *)buff;
+		for(i=0; i < 80; i++)
+		{
+			// Red
+			p[i] = 0xF800;
+			// Green
+			p[i+80] = 0x07E0;
+			// Blue
+			p[i+160] = 0x001F;
+		}
+		x = 0;
+		y = 353;
+		width = 240;
+		height = 47;
+		
+		fbi->screen_base = fbi->screen_base + ( SCREEN_WIDTH * 2 * y) + (2 * x);
+		for(i = 0; i < height; i++)
+		{
+			memcpy(fbi->screen_base + (SCREEN_WIDTH * 2 * i), buff, SCREEN_WIDTH * 2);
+		}
+	}
+	#endif
+	
+
 	fbram += fix->smem_len;
 	fbram_phys += fix->smem_len;
 	fbram_size -= fix->smem_len;
@@ -1121,8 +1297,30 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 	    ("FrameBuffer[%d] %dx%d size=%d bytes is registered successfully!\n",
 	     mfd->index, fbi->var.xres, fbi->var.yres, fbi->fix.smem_len);
 
-#ifdef CONFIG_FB_MSM_LOGO
-	if (!load_565rle_image(INIT_IMAGE_FILE)) ;	/* Flip buffer */
+#ifdef CONFIG_FB_MSM_SEC_BOOTLOGO
+	// if (!load_565rle_image_onfb( "EUROPA.rle",0,99)) ;	/* Flip buffer */
+// 20100909 hongkuk.son for COOPER.rle ( booting logo )
+	// if (!load_565rle_image_onfb( "CALLISTO.rle",0,0)) ;	/* Flip buffer */
+
+#if defined(CONFIG_MACH_COOPER)
+	if (!load_565rle_image_onfb( "COOPER.rle",0,0)) ;	/* Flip buffer */
+#endif	
+
+#if defined(CONFIG_MACH_BENI)
+	if (!load_565rle_image_onfb( "BENI.rle",0,0)) ;	/* Flip buffer */
+#endif	
+
+#if defined(CONFIG_MACH_TASS)
+	if (!load_565rle_image_onfb( "TASS.rle",0,0)) ;	/* Flip buffer */
+#endif	
+
+#if defined(CONFIG_MACH_LUCAS)
+	if (!load_565rle_image_onfb( "LUCAS.rle",0,0)) ;	/* Flip buffer */
+#endif	
+
+#if defined(CONFIG_MACH_CALLISTO)
+	if (!load_565rle_image_onfb( "CALLISTO.rle",0,0)) ;	/* Flip buffer */
+#endif	
 #endif
 	ret = 0;
 

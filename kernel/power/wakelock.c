@@ -24,6 +24,11 @@
 #endif
 #include "power.h"
 
+#ifdef CONFIG_DPRAM_WHITELIST
+#include <linux/delay.h>
+#include "portlist.h"
+#endif /* CONFIG_DPRAM_WHITELIST */
+
 enum {
 	DEBUG_EXIT_SUSPEND = 1U << 0,
 	DEBUG_WAKEUP = 1U << 1,
@@ -45,7 +50,11 @@ static LIST_HEAD(inactive_locks);
 static struct list_head active_wake_locks[WAKE_LOCK_TYPE_COUNT];
 static int current_event_num;
 struct workqueue_struct *suspend_work_queue;
+// hsil
+struct workqueue_struct *sync_work_queue;
 struct wake_lock main_wake_lock;
+// hsil
+struct wake_lock sync_wake_lock;
 suspend_state_t requested_suspend_state = PM_SUSPEND_MEM;
 static struct wake_lock unknown_wakeup;
 
@@ -269,6 +278,23 @@ static void suspend(struct work_struct *work)
 			pr_info("suspend: abort suspend\n");
 		return;
 	}
+
+#ifdef CONFIG_DPRAM_WHITELIST
+	// call process white list
+	ret = process_white_list();
+	if (unlikely(ret !=0)) {
+		printk("fail to send whitelist\n");
+		return;
+	} else {
+		msleep(1000); // watch suspend condition change
+		if (has_wake_lock(WAKE_LOCK_SUSPEND)) {
+			if (debug_mask & DEBUG_SUSPEND)
+				pr_info("suspend: abort suspend after processing white list\n");
+			return;
+		}
+	} 
+#endif /* CONFIG_DPRAM_WHITELIST */
+
 
 	entry_event_num = current_event_num;
 	sys_sync();
@@ -549,6 +575,8 @@ static int __init wakelocks_init(void)
 			"deleted_wake_locks");
 #endif
 	wake_lock_init(&main_wake_lock, WAKE_LOCK_SUSPEND, "main");
+	// hsil	
+	wake_lock_init(&sync_wake_lock, WAKE_LOCK_SUSPEND, "sync_system");
 	wake_lock(&main_wake_lock);
 	wake_lock_init(&unknown_wakeup, WAKE_LOCK_SUSPEND, "unknown_wakeups");
 
@@ -569,6 +597,14 @@ static int __init wakelocks_init(void)
 		goto err_suspend_work_queue;
 	}
 
+	// hsil
+	sync_work_queue = create_singlethread_workqueue("sync_system_work");
+	if (sync_work_queue == NULL) {
+		pr_err("%s: failed to create sync_work_queue\n", __func__);
+		ret = -ENOMEM;
+		goto err_suspend_work_queue;
+	}
+
 #ifdef CONFIG_WAKELOCK_STAT
 	proc_create("wakelocks", S_IRUGO, NULL, &wakelock_stats_fops);
 #endif
@@ -581,6 +617,8 @@ err_platform_driver_register:
 	platform_device_unregister(&power_device);
 err_platform_device_register:
 	wake_lock_destroy(&unknown_wakeup);
+	// hsil
+	wake_lock_destroy(&sync_wake_lock);
 	wake_lock_destroy(&main_wake_lock);
 #ifdef CONFIG_WAKELOCK_STAT
 	wake_lock_destroy(&deleted_wake_locks);
@@ -594,9 +632,11 @@ static void  __exit wakelocks_exit(void)
 	remove_proc_entry("wakelocks", NULL);
 #endif
 	destroy_workqueue(suspend_work_queue);
+	destroy_workqueue(sync_work_queue);	// hsil
 	platform_driver_unregister(&power_driver);
 	platform_device_unregister(&power_device);
 	wake_lock_destroy(&unknown_wakeup);
+	wake_lock_destroy(&sync_wake_lock);
 	wake_lock_destroy(&main_wake_lock);
 #ifdef CONFIG_WAKELOCK_STAT
 	wake_lock_destroy(&deleted_wake_locks);

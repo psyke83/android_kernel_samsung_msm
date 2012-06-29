@@ -9,9 +9,37 @@ params_phys-$(CONFIG_ARCH_MSM7X25)	:= 0x00200100
 initrd_phys-$(CONFIG_ARCH_MSM7X25)	:= 0x0A000000
 
 # MSM7x27
+ifeq ($(CONFIG_MACH_CALLISTO),y)
+   zreladdr-$(CONFIG_ARCH_MSM7X27)	:= 0x13608000
+params_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x13600100
+initrd_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x14600000
+endif
+
+ifeq ($(CONFIG_MACH_COOPER),y)
+   zreladdr-$(CONFIG_ARCH_MSM7X27)	:= 0x13608000
+params_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x13600100
+initrd_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x14600000
+endif
+ifeq ($(CONFIG_MACH_BENI),y)
+   zreladdr-$(CONFIG_ARCH_MSM7X27)	:= 0x13608000
+params_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x13600100
+initrd_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x14600000
+endif
+ifeq ($(CONFIG_MACH_TASS),y)
+   zreladdr-$(CONFIG_ARCH_MSM7X27)	:= 0x13608000
+params_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x13600100
+initrd_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x14600000
+endif
+ifeq ($(CONFIG_MACH_LUCAS),y)
+   zreladdr-$(CONFIG_ARCH_MSM7X27)	:= 0x13608000
+params_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x13600100
+initrd_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x14600000
+endif
+ifeq ($(CONFIG_MACH_EUROPA),y)
    zreladdr-$(CONFIG_ARCH_MSM7X27)	:= 0x00208000
 params_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x00200100
 initrd_phys-$(CONFIG_ARCH_MSM7X27)	:= 0x0A000000
+endif
 
 # MSM7x30
    zreladdr-$(CONFIG_ARCH_MSM7X30)	:= 0x00208000

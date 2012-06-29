@@ -16,6 +16,15 @@ obj-$(CONFIG_ARCH_QSD8X50) += msm_vfe8x.o msm_vfe8x_proc.o msm_io8x.o
 obj-$(CONFIG_ARCH_MSM8X60) += msm_vfe31.o msm_io_8x60.o msm_vpe1.o
 obj-$(CONFIG_MT9T013) += mt9t013.o mt9t013_reg.o
 obj-$(CONFIG_SN12M0PZ) += sn12m0pz.o sn12m0pz_reg.o
+obj-$(CONFIG_S5K4CA) += s5k4ca.o
+obj-$(CONFIG_SR200PC10) += sr200pc10.o
+obj-$(CONFIG_S5K5CA) += s5k5ca.o
+obj-$(CONFIG_S5K5CAFF) += s5k5caff.o
+obj-$(CONFIG_S5K5CCAF) += s5k5ccaf.o
+obj-$(CONFIG_S5K5CCFF) += s5k5ccff.o
+obj-$(CONFIG_ISX006) += isx006.o
+obj-$(CONFIG_S5K4ECGX) += s5k4ecgx.o
+obj-$(CONFIG_S5K4ECGX_COOPER) += s5k4ecgx_cooper.o ledflash_cooper.o
 obj-$(CONFIG_MT9P012) += mt9p012_reg.o
 obj-$(CONFIG_MSM_CAMERA_AF_FOXCONN) += mt9p012_fox.o
 obj-$(CONFIG_MSM_CAMERA_AF_BAM) += mt9p012_bam.o
@@ -26,7 +35,7 @@ obj-$(CONFIG_S5K3E2FX) += s5k3e2fx.o
 ifeq ($(CONFIG_MSM_CAMERA_V4L2),y)
   obj-$(CONFIG_VX6953) += vx6953_v4l2.o vx6953_reg_v4l2.o
 else
-  obj-$(CONFIG_VX6953) += vx6953.o vx6953_reg.o
+obj-$(CONFIG_VX6953) += vx6953.o vx6953_reg.o
 endif
 obj-$(CONFIG_VB6801) += vb6801.o
 obj-$(CONFIG_IMX074) += imx074.o imx074_reg.o

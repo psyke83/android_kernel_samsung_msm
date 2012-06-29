@@ -29,6 +29,14 @@
 #include <mach/board.h>
 #include <mach/msm_rpcrouter.h>
 #include <mach/debug_mm.h>
+#include <mach/gpio.h>
+
+#define FEATURE_MAX8899_AMP_OFF
+
+#ifdef FEATURE_MAX8899_AMP_OFF
+#include "../proc_comm.h"
+#define SMEM_PROC_COMM_AMP_OFF			PCOM_OEM_MAX8899_AMP_OFF
+#endif
 
 struct snd_ctxt {
 	struct mutex lock;
@@ -55,6 +63,7 @@ static struct snd_ctxt the_snd;
 #define SND_SET_VOLUME_PROC 3
 #define SND_AVC_CTL_PROC 29
 #define SND_AGC_CTL_PROC 30
+#define SND_SET_EXTAMP_PROC 100 /* AMP Set Volume */
 
 struct rpc_snd_set_device_args {
 	uint32_t device;
@@ -86,6 +95,15 @@ struct rpc_snd_agc_ctl_args {
 	uint32_t client_data;
 };
 
+struct rpc_snd_set_extamp_args {
+	uint32_t device;
+	uint32_t speaker_volume;
+	uint32_t headset_volume;
+
+	uint32_t cb_func;
+	uint32_t client_data;
+};
+
 struct snd_set_device_msg {
 	struct rpc_request_hdr hdr;
 	struct rpc_snd_set_device_args args;
@@ -104,6 +122,11 @@ struct snd_avc_ctl_msg {
 struct snd_agc_ctl_msg {
 	struct rpc_request_hdr hdr;
 	struct rpc_snd_agc_ctl_args args;
+};
+
+struct snd_set_extamp_msg {
+	struct rpc_request_hdr hdr;
+	struct rpc_snd_set_extamp_args args;
 };
 
 struct snd_endpoint *get_snd_endpoints(int *size);
@@ -149,125 +172,182 @@ static long snd_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct snd_set_volume_msg vmsg;
 	struct snd_avc_ctl_msg avc_msg;
 	struct snd_agc_ctl_msg agc_msg;
+	struct snd_set_extamp_msg emsg;
 
 	struct msm_snd_device_config dev;
 	struct msm_snd_volume_config vol;
+	struct msm_snd_extamp_config extamp;
 	struct snd_ctxt *snd = file->private_data;
 	int rc = 0;
 
 	uint32_t avc, agc;
 
+#ifdef FEATURE_MAX8899_AMP_OFF
+	int data1 = 0;
+	int data2 = 0;
+#endif
 	mutex_lock(&snd->lock);
-	switch (cmd) {
-	case SND_SET_DEVICE:
-		if (copy_from_user(&dev, (void __user *) arg, sizeof(dev))) {
-			MM_ERR("set device: invalid pointer\n");
-			rc = -EFAULT;
-			break;
+	if(!is_modem_reset)
+	{
+		switch (cmd) {
+			case SND_SET_DEVICE:
+				if (copy_from_user(&dev, (void __user *) arg, sizeof(dev))) {
+					MM_ERR("set device: invalid pointer\n");
+					rc = -EFAULT;
+					break;
+				}
+
+				dmsg.args.device = cpu_to_be32(dev.device);
+				dmsg.args.ear_mute = cpu_to_be32(dev.ear_mute);
+				dmsg.args.mic_mute = cpu_to_be32(dev.mic_mute);
+				if (check_mute(dev.ear_mute) < 0 ||
+						check_mute(dev.mic_mute) < 0) {
+					MM_ERR("set device: invalid mute status\n");
+					rc = -EINVAL;
+					break;
+				}
+				dmsg.args.cb_func = -1;
+				dmsg.args.client_data = 0;
+
+				MM_ERR("snd_set_device %d %d %d\n", dev.device,
+						dev.ear_mute, dev.mic_mute);
+
+				rc = msm_rpc_call(snd->ept,
+						SND_SET_DEVICE_PROC,
+						&dmsg, sizeof(dmsg), 5 * HZ);
+				break;
+
+			case SND_SET_VOLUME:
+				if (copy_from_user(&vol, (void __user *) arg, sizeof(vol))) {
+					MM_ERR("set volume: invalid pointer\n");
+					rc = -EFAULT;
+					break;
+				}
+
+				vmsg.args.device = cpu_to_be32(vol.device);
+				vmsg.args.method = cpu_to_be32(vol.method);
+				if (vol.method != SND_METHOD_VOICE) {
+					MM_ERR("set volume: invalid method\n");
+					rc = -EINVAL;
+					break;
+				}
+
+				vmsg.args.volume = cpu_to_be32(vol.volume);
+				vmsg.args.cb_func = -1;
+				vmsg.args.client_data = 0;
+
+				MM_ERR("snd_set_volume %d %d %d\n", vol.device,
+						vol.method, vol.volume);
+
+				rc = msm_rpc_call(snd->ept,
+						SND_SET_VOLUME_PROC,
+						&vmsg, sizeof(vmsg), 5 * HZ);
+				break;
+
+			case SND_AVC_CTL:
+				if (get_user(avc, (uint32_t __user *) arg)) {
+					rc = -EFAULT;
+					break;
+				} else if ((avc != 1) && (avc != 0)) {
+					rc = -EINVAL;
+					break;
+				}
+
+				avc_msg.args.avc_ctl = cpu_to_be32(avc);
+				avc_msg.args.cb_func = -1;
+				avc_msg.args.client_data = 0;
+
+				MM_INFO("snd_avc_ctl %d\n", avc);
+
+				rc = msm_rpc_call(snd->ept,
+						SND_AVC_CTL_PROC,
+						&avc_msg, sizeof(avc_msg), 5 * HZ);
+				break;
+
+			case SND_AGC_CTL:
+				if (get_user(agc, (uint32_t __user *) arg)) {
+					rc = -EFAULT;
+					break;
+				} else if ((agc != 1) && (agc != 0)) {
+					rc = -EINVAL;
+					break;
+				}
+				agc_msg.args.agc_ctl = cpu_to_be32(agc);
+				agc_msg.args.cb_func = -1;
+				agc_msg.args.client_data = 0;
+
+				MM_INFO("snd_agc_ctl %d\n", agc);
+
+				rc = msm_rpc_call(snd->ept,
+						SND_AGC_CTL_PROC,
+						&agc_msg, sizeof(agc_msg), 5 * HZ);
+				break;
+
+			case SND_GET_NUM_ENDPOINTS:
+				if (copy_to_user((void __user *)arg,
+							&snd->snd_epts->num, sizeof(unsigned))) {
+					MM_ERR("get endpoint: invalid pointer\n");
+					rc = -EFAULT;
+				}
+				break;
+
+			case SND_GET_ENDPOINT:
+				rc = get_endpoint(snd, arg);
+				break;
+
+			case SND_SET_EXTAMP:
+				if (copy_from_user(&extamp, (void __user *) arg, sizeof(extamp))) {
+					MM_ERR("set extamp: invalid pointer\n");
+					rc = -EFAULT;
+					break;
+				}
+
+				emsg.args.device = cpu_to_be32(extamp.device);
+				emsg.args.speaker_volume = cpu_to_be32(extamp.speaker_volume);
+				emsg.args.headset_volume = cpu_to_be32(extamp.headset_volume);
+				emsg.args.cb_func = -1;
+				emsg.args.client_data = 0;
+
+				MM_ERR("snd_set_extamp %d %d %d\n", extamp.device,
+						extamp.speaker_volume, extamp.headset_volume);
+
+				rc = msm_rpc_call(snd->ept,
+						SND_SET_EXTAMP_PROC,
+						&emsg, sizeof(emsg), 5 * HZ);
+				break;
+			case SND_SET_MAIN_MIC:
+#ifndef CONFIG_MACH_COOPER
+				gpio_set_value(89, 1);
+				MM_ERR("snd_set_main_mic\n");
+#endif
+				break;
+			case SND_SET_SUB_MIC:
+#ifndef CONFIG_MACH_COOPER
+				gpio_set_value(89, 0);
+				MM_ERR("snd_set_sub_mic\n");
+#endif
+				break;
+#ifdef FEATURE_MAX8899_AMP_OFF
+			case SND_MAX8899_AMP_OFF:
+				if (copy_from_user(&data1, (void __user *) arg, sizeof(data1))) {
+					MM_ERR("amp off: invalid pointer\n");
+					rc = -EFAULT;
+					break;
+				}
+				rc = msm_proc_comm(SMEM_PROC_COMM_AMP_OFF, &data1, &data2);
+				if(rc < 0)
+				{
+					printk("%s max8899 amp off proccomm fail\n", __func__);
+					return rc;
+				}
+				MM_ERR("snd_max8899_amp_off %d\n", data1);
+				break;
+#endif
+			default:
+				MM_ERR("unknown command %d\n", cmd);
+				rc = -EINVAL;
+				break;
 		}
-
-		dmsg.args.device = cpu_to_be32(dev.device);
-		dmsg.args.ear_mute = cpu_to_be32(dev.ear_mute);
-		dmsg.args.mic_mute = cpu_to_be32(dev.mic_mute);
-		if (check_mute(dev.ear_mute) < 0 ||
-				check_mute(dev.mic_mute) < 0) {
-			MM_ERR("set device: invalid mute status\n");
-			rc = -EINVAL;
-			break;
-		}
-		dmsg.args.cb_func = -1;
-		dmsg.args.client_data = 0;
-
-		MM_INFO("snd_set_device %d %d %d\n", dev.device,
-				dev.ear_mute, dev.mic_mute);
-
-		rc = msm_rpc_call(snd->ept,
-			SND_SET_DEVICE_PROC,
-			&dmsg, sizeof(dmsg), 5 * HZ);
-		break;
-
-	case SND_SET_VOLUME:
-		if (copy_from_user(&vol, (void __user *) arg, sizeof(vol))) {
-			MM_ERR("set volume: invalid pointer\n");
-			rc = -EFAULT;
-			break;
-		}
-
-		vmsg.args.device = cpu_to_be32(vol.device);
-		vmsg.args.method = cpu_to_be32(vol.method);
-		if (vol.method != SND_METHOD_VOICE) {
-			MM_ERR("set volume: invalid method\n");
-			rc = -EINVAL;
-			break;
-		}
-
-		vmsg.args.volume = cpu_to_be32(vol.volume);
-		vmsg.args.cb_func = -1;
-		vmsg.args.client_data = 0;
-
-		MM_INFO("snd_set_volume %d %d %d\n", vol.device,
-				vol.method, vol.volume);
-
-		rc = msm_rpc_call(snd->ept,
-			SND_SET_VOLUME_PROC,
-			&vmsg, sizeof(vmsg), 5 * HZ);
-		break;
-
-	case SND_AVC_CTL:
-		if (get_user(avc, (uint32_t __user *) arg)) {
-			rc = -EFAULT;
-			break;
-		} else if ((avc != 1) && (avc != 0)) {
-			rc = -EINVAL;
-			break;
-		}
-
-		avc_msg.args.avc_ctl = cpu_to_be32(avc);
-		avc_msg.args.cb_func = -1;
-		avc_msg.args.client_data = 0;
-
-		MM_INFO("snd_avc_ctl %d\n", avc);
-
-		rc = msm_rpc_call(snd->ept,
-			SND_AVC_CTL_PROC,
-			&avc_msg, sizeof(avc_msg), 5 * HZ);
-		break;
-
-	case SND_AGC_CTL:
-		if (get_user(agc, (uint32_t __user *) arg)) {
-			rc = -EFAULT;
-			break;
-		} else if ((agc != 1) && (agc != 0)) {
-			rc = -EINVAL;
-			break;
-		}
-		agc_msg.args.agc_ctl = cpu_to_be32(agc);
-		agc_msg.args.cb_func = -1;
-		agc_msg.args.client_data = 0;
-
-		MM_INFO("snd_agc_ctl %d\n", agc);
-
-		rc = msm_rpc_call(snd->ept,
-			SND_AGC_CTL_PROC,
-			&agc_msg, sizeof(agc_msg), 5 * HZ);
-		break;
-
-	case SND_GET_NUM_ENDPOINTS:
-		if (copy_to_user((void __user *)arg,
-				&snd->snd_epts->num, sizeof(unsigned))) {
-			MM_ERR("get endpoint: invalid pointer\n");
-			rc = -EFAULT;
-		}
-		break;
-
-	case SND_GET_ENDPOINT:
-		rc = get_endpoint(snd, arg);
-		break;
-
-	default:
-		MM_ERR("unknown command\n");
-		rc = -EINVAL;
-		break;
 	}
 	mutex_unlock(&snd->lock);
 

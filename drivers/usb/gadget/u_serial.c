@@ -374,7 +374,9 @@ __acquires(&port->port_lock)
 		len = gs_send_packet(port, req->buf, TX_BUF_SIZE);
 		if (len == 0) {
 			/* Queue zero length packet */
-			if (prev_len & (prev_len % in->maxpacket == 0)) {
+                        /* Bug fix : change & operator to && operator */
+                        /* If we want't check zlp-condition, have to use && operator */
+			if (prev_len && (prev_len % in->maxpacket == 0)) {
 				req->length = 0;
 				list_del(&req->list);
 

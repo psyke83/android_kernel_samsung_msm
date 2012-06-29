@@ -594,7 +594,6 @@ config ARCH_MSM
 	select GENERIC_TIME
 	select GENERIC_CLOCKEVENTS
 	select ARCH_WANT_OPTIONAL_GPIOLIB
-	select ARCH_HAS_BARRIERS
 	select COMMON_CLKDEV
 	select HAVE_SCHED_CLOCK
 	help
@@ -1140,6 +1139,25 @@ source "drivers/pci/Kconfig"
 source "drivers/pcmcia/Kconfig"
 
 endmenu
+
+#menu "Samsung Kernel Debug Features"
+
+#choice
+#        prompt "Enable Samsung Kernel Debug Features"
+#        default KERNEL_DEBUG_SEC
+
+config KERNEL_DEBUG_SEC
+        bool "KERNEL_DEBUG_SEC"
+        default n
+
+config KERNEL_SEC_MMICHECK
+        bool "KERNEL_SEC_MMICHECK"
+        default n
+
+#endchoice
+
+#endmenu
+
 
 menu "Kernel Features"
 

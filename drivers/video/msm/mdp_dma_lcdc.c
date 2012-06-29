@@ -48,6 +48,10 @@
 
 #define DMA_P_BASE      0x90000
 
+#if defined(CONFIG_MACH_COOPER)
+extern int lcd_type_smd;
+#endif
+
 extern spinlock_t mdp_spin_lock;
 #ifndef CONFIG_FB_MSM_MDP40
 extern uint32 mdp_intr_mask;
@@ -55,6 +59,9 @@ extern uint32 mdp_intr_mask;
 
 int first_pixel_start_x;
 int first_pixel_start_y;
+
+// hsil
+int mdp_lcdc_on_flg = 0;
 
 int mdp_lcdc_on(struct platform_device *pdev)
 {
@@ -99,6 +106,17 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	uint32 block = MDP_DMA2_BLOCK;
 	int ret;
 
+	// hsil
+	if (mdp_lcdc_on_flg)
+	{
+		printk("[kkw] %s(%d)  mdp_lcdc_on start called twice\n", __func__, __LINE__);
+		return 0;
+	}
+
+	mdp_lcdc_on_flg = 1;
+
+	printk("[HSIL] %s(%d)  mdp_lcdc_on start\n", __func__, __LINE__);
+
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
 
 	if (!mfd)
@@ -117,7 +135,11 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	buf = (uint8 *) fbi->fix.smem_start;
 	buf += fbi->var.xoffset * bpp + fbi->var.yoffset * fbi->fix.line_length;
 
+#if defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_CALLISTO)
+	dma2_cfg_reg = DMA_PACK_ALIGN_LSB | DMA_DITHER_EN | DMA_OUT_SEL_LCDC;
+#else
 	dma2_cfg_reg = DMA_PACK_ALIGN_LSB | DMA_OUT_SEL_LCDC;
+#endif
 
 	if (mfd->fb_imgType == MDP_BGR_565)
 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
@@ -241,8 +263,15 @@ int mdp_lcdc_on(struct platform_device *pdev)
 
 	lcdc_underflow_clr |= 0x80000000;	/* enable recovery */
 #else
+	#if defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_LUCAS)
+	//#if defined(CONFIG_MACH_CALLISTO) // minhyo100515
+	printk("polarity setting\n"); // minhyodebug
+	hsync_polarity = 1; // active low
+	vsync_polarity = 1;	// active low
+	#else
 	hsync_polarity = 0;
 	vsync_polarity = 0;
+	#endif
 #endif
 	data_en_polarity = 0;
 
@@ -253,6 +282,7 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	MDP_OUTP(MDP_BASE + timer_base + 0x8, vsync_period);
 	MDP_OUTP(MDP_BASE + timer_base + 0xc, vsync_pulse_width * hsync_period);
 	if (timer_base == LCDC_BASE) {
+		printk("==============++minhyodebug : LCD CONTROLLER Registers Setting\n");
 		MDP_OUTP(MDP_BASE + timer_base + 0x10, display_hctl);
 		MDP_OUTP(MDP_BASE + timer_base + 0x14, display_v_start);
 		MDP_OUTP(MDP_BASE + timer_base + 0x18, display_v_end);
@@ -263,6 +293,19 @@ int mdp_lcdc_on(struct platform_device *pdev)
 		MDP_OUTP(MDP_BASE + timer_base + 0x1c, active_hctl);
 		MDP_OUTP(MDP_BASE + timer_base + 0x20, active_v_start);
 		MDP_OUTP(MDP_BASE + timer_base + 0x24, active_v_end);
+
+		#if 1 // minhyodebug
+		printk("display_hctl = 0x%x\n", display_hctl);
+		printk("display_v_start = 0x%x\n", display_v_start);
+		printk("display_v_end = 0x%x\n", display_v_end);
+		printk("lcdc_border_clr = 0x%x\n", lcdc_border_clr);
+		printk("lcdc_underflow_clr = 0x%x\n", lcdc_underflow_clr);
+		printk("lcdc_hsync_skew = 0x%x\n", lcdc_hsync_skew);
+		printk("ctrl_polarity = 0x%x\n", ctrl_polarity);
+		printk("active_hctl = 0x%x\n", active_hctl);
+		printk("active_v_start = 0x%x\n", active_v_start);
+		printk("active_v_end = 0x%x\n", active_v_end);
+		#endif
 	} else {
 		MDP_OUTP(MDP_BASE + timer_base + 0x18, display_hctl);
 		MDP_OUTP(MDP_BASE + timer_base + 0x1c, display_v_start);
@@ -285,6 +328,8 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	/* MDP cmd block disable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 
+	printk("[HSIL] %s(%d)  mdp_lcdc_on end\n", __func__, __LINE__);
+
 	return ret;
 }
 
@@ -295,6 +340,11 @@ int mdp_lcdc_off(struct platform_device *pdev)
 	uint32 timer_base = LCDC_BASE;
 	uint32 block = MDP_DMA2_BLOCK;
 
+	// hsil
+	mdp_lcdc_on_flg = 0;
+
+	printk("[HSIL] %s(%d)  mdp_lcdc_off start\n", __func__, __LINE__);
+
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
 
 #ifdef CONFIG_FB_MSM_MDP40
@@ -304,6 +354,11 @@ int mdp_lcdc_off(struct platform_device *pdev)
 	}
 #endif
 
+#if defined(CONFIG_MACH_COOPER) 
+	if( lcd_type_smd )
+		ret = panel_next_off(pdev);
+#endif
+
 	/* MDP cmd block enable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 	MDP_OUTP(MDP_BASE + timer_base, 0);
@@ -311,7 +366,14 @@ int mdp_lcdc_off(struct platform_device *pdev)
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 	mdp_pipe_ctrl(block, MDP_BLOCK_POWER_OFF, FALSE);
 
+	printk("[HSIL] %s(%d)  mdp_lcdc_off end\n", __func__, __LINE__);
+
+#if defined(CONFIG_MACH_COOPER)
+	if( lcd_type_smd == 0 )
+		ret = panel_next_off(pdev);
+#else
 	ret = panel_next_off(pdev);
+#endif
 
 	/* delay to make sure the last frame finishes */
 	msleep(16);

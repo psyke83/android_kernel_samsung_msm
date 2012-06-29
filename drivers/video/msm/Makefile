@@ -111,19 +111,29 @@ endif
 
 obj-$(CONFIG_FB_MSM_LCDC_PANEL) += lcdc_panel.o
 obj-$(CONFIG_FB_MSM_LCDC_PRISM_WVGA) += lcdc_prism.o
-obj-$(CONFIG_FB_MSM_LCDC_SAMSUNG_WSVGA) += lcdc_samsung_wsvga.o
-obj-$(CONFIG_FB_MSM_LCDC_EXTERNAL_WXGA) += lcdc_external.o
-obj-$(CONFIG_FB_MSM_HDMI_SII_EXTERNAL_720P) += hdmi_sii9022.o
-obj-$(CONFIG_FB_MSM_LCDC_GORDON_VGA) += lcdc_gordon.o
-obj-$(CONFIG_FB_MSM_LCDC_WXGA) += lcdc_wxga.o
-obj-$(CONFIG_FB_MSM_LCDC_TOSHIBA_WVGA_PT) += lcdc_toshiba_wvga_pt.o
-obj-$(CONFIG_FB_MSM_LCDC_SHARP_WVGA_PT) += lcdc_sharp_wvga_pt.o
-obj-$(CONFIG_FB_MSM_LCDC_SAMSUNG_OLED_PT) += lcdc_samsung_oled_pt.o
-obj-$(CONFIG_FB_MSM_HDMI_ADV7520_PANEL) += adv7520.o
-obj-$(CONFIG_FB_MSM_LCDC_ST15_WXGA) += lcdc_st15.o
-obj-$(CONFIG_FB_MSM_LCDC_QRDC_WXGA) += lcdc_qrdc.o
-obj-$(CONFIG_FB_MSM_HDMI_MSM_PANEL) += hdmi_msm.o
-obj-$(CONFIG_FB_MSM_EXT_INTERFACE_COMMON) += external_common.o
+#obj-$(CONFIG_FB_MSM_LCDC_SAMSUNG_WSVGA) += lcdc_samsung_wsvga.o
+#obj-$(CONFIG_FB_MSM_LCDC_EXTERNAL_WXGA) += lcdc_external.o
+#obj-$(CONFIG_FB_MSM_HDMI_SII_EXTERNAL_720P) += hdmi_sii9022.o
+#obj-$(CONFIG_FB_MSM_LCDC_GORDON_VGA) += lcdc_gordon.o
+#obj-$(CONFIG_FB_MSM_LCDC_WXGA) += lcdc_wxga.o
+#obj-$(CONFIG_FB_MSM_LCDC_TOSHIBA_WVGA_PT) += lcdc_toshiba_wvga_pt.o
+#obj-$(CONFIG_FB_MSM_LCDC_SHARP_WVGA_PT) += lcdc_sharp_wvga_pt.o
+#obj-$(CONFIG_FB_MSM_LCDC_SAMSUNG_OLED_PT) += lcdc_samsung_oled_pt.o
+#obj-$(CONFIG_FB_MSM_HDMI_ADV7520_PANEL) += adv7520.o
+#obj-$(CONFIG_FB_MSM_LCDC_ST15_WXGA) += lcdc_st15.o
+#obj-$(CONFIG_FB_MSM_LCDC_QRDC_WXGA) += lcdc_qrdc.o
+#obj-$(CONFIG_FB_MSM_HDMI_MSM_PANEL) += hdmi_msm.o
+#obj-$(CONFIG_FB_MSM_EXT_INTERFACE_COMMON) += external_common.o
+obj-$(CONFIG_FB_MSM_LCDC_TA8566_WQVGA) += lcdc_ta8566.o 
+
+#################################
+# S6D Series lcd driver for MSM #
+#################################
+obj-$(CONFIG_FB_MSM_LCDC_S6D16A0X_HVGA) += lcdc_s6d.o lcdc_s6d_backlight.o 
+obj-$(CONFIG_FB_MSM_LCDC_S6D04M0_QVGA) += lcdc_s6d.o
+obj-$(CONFIG_FB_MSM_LCDC_S6D04D1_WQVGA) += lcdc_s6d.o 
+obj-$(CONFIG_FB_MSM_LCDC_S6D04H0A_QVGA) += lcdc_s6d.o lcdc_s6d_backlight.o 
+obj-$(CONFIG_FB_MSM_LCDC_S6D05A0_WQVGA) += lcdc_s6d.o lcdc_s6d_backlight.o 
 
 obj-$(CONFIG_FB_MSM_TVOUT) += tvout_msm.o
 

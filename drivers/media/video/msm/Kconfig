@@ -23,6 +23,64 @@ config MT9D112
 	default y
 	---help---
 	  MICRON 2M YUV Sensor
+
+config S5K4CA
+	bool "Sensor s5k4ca (3M)"
+	default n
+	---help---
+	  SAMSUNG 3M CMOS Sensor
+
+config SR200PC10
+	bool "Sensor sr200pc10 (2M)"
+	default n
+	---help---
+	  SILICON-FILE 2M CMOS Sensor
+
+config S5K5CA
+	bool "Sensor s5k5ca 1/5 (3M)"
+	default n
+	---help---
+	  SAMSUNG 3M CMOS Sensor
+
+config S5K5CAFF
+	bool "Sensor s5k5caff 1/5 (3M)"
+	default n
+	---help---
+	  SAMSUNG 3M CMOS Sensor
+
+config S5K5CCAF
+	bool "Sensor s5k5cc 1/5 (3M/AF)"
+	default n
+	---help---
+	  SAMSUNG 3M CMOS Sensor
+
+
+
+config S5K5CCFF
+	bool "Sensor s5k5cc 1/5 (3M/FF)"
+	default n
+	---help---
+	  SAMSUNG 3M CMOS Sensor
+
+
+config ISX006
+	bool "Sensor isx006 (5M)"
+	default n
+	---help---
+	  SONY 5M CMOS Sensor 
+
+config S5K4ECGX
+	bool "Sensor s5k4ecgx (5M)"
+	default n
+	---help---
+	  SAMSUNG LSI 5M CMOS Sensor 	  
+
+config S5K4ECGX_COOPER
+	bool "Sensor s5k4ecgx (5M)"
+	default n
+	---help---
+	  SAMSUNG LSI 5M CMOS Sensor 	  
+
 config IMX074
 	bool "Sensor IMX074 (BAYER 13.5M)"
 	depends on MSM_CAMERA && ARCH_MSM8X60 && !MSM_CAMERA_V4L2

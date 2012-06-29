@@ -48,6 +48,7 @@
 #include "config.c"
 #include "epautoconf.c"
 #include "composite.c"
+#include "serial_acm.c"
 
 MODULE_AUTHOR("Mike Lockwood");
 MODULE_DESCRIPTION("Android Composite USB Driver");
@@ -55,6 +56,12 @@ MODULE_LICENSE("GPL");
 MODULE_VERSION("1.0");
 
 static const char longname[] = "Gadget Android";
+
+extern void modem_register(void);
+extern void modem_unregister(void);
+
+/* product id */
+static u16 product_id_inform;
 
 /* Default vendor and product IDs, overridden by platform data */
 #define VENDOR_ID		0x18D1
@@ -70,6 +77,10 @@ struct android_dev {
 
 	int product_id;
 	int version;
+	int adb_enabled;
+	int adb_pid;
+
+	struct mutex lock;
 };
 
 static struct android_dev *_android_dev;
@@ -105,7 +116,9 @@ static struct usb_device_descriptor device_desc = {
 	.bLength              = sizeof(device_desc),
 	.bDescriptorType      = USB_DT_DEVICE,
 	.bcdUSB               = __constant_cpu_to_le16(0x0200),
-	.bDeviceClass         = USB_CLASS_PER_INTERFACE,
+	.bDeviceClass 		= USB_CLASS_MASS_STORAGE,
+	.bDeviceSubClass 		= 0x06,
+	.bDeviceProtocol 		= 0x50,
 	.idVendor             = __constant_cpu_to_le16(VENDOR_ID),
 	.idProduct            = __constant_cpu_to_le16(PRODUCT_ID),
 	.bcdDevice            = __constant_cpu_to_le16(0xffff),
@@ -203,6 +216,8 @@ static int android_setup_config(struct usb_configuration *c,
 	int ret = -EOPNOTSUPP;
 
 	for (i = 0; i < android_config_driver.next_interface_id; i++) {
+		if (!android_config_driver.interface[i])
+			continue;
 		if (android_config_driver.interface[i]->setup) {
 			ret = android_config_driver.interface[i]->setup(
 				android_config_driver.interface[i], ctrl);
@@ -227,7 +242,7 @@ static int product_has_function(struct android_usb_product *p,
 	}
 	return 0;
 }
-
+#if 0
 static int product_matches_functions(struct android_usb_product *p)
 {
 	struct usb_function		*f;
@@ -237,7 +252,31 @@ static int product_matches_functions(struct android_usb_product *p)
 	}
 	return 1;
 }
+#endif
+static int product_matches_functions(struct android_usb_product *p)
+{
+	struct usb_function		*f;
 
+	char **functions = p->functions;
+	int count = p->num_functions;
+	int i;
+	int detect = 0;
+
+	for (i = 0; i < count; i++) {
+		detect =0;
+		list_for_each_entry(f, &android_config_driver.functions, list) {
+			if(!f->disabled){
+				if (!strcmp(f->name, *(functions+i))){
+					detect =1;
+					break;
+				}
+			}
+		}
+		if(!detect)
+			return 0;
+	}
+	return 1;
+}
 static int get_product_id(struct android_dev *dev)
 {
 	struct android_usb_product *p = dev->products;
@@ -287,10 +326,16 @@ static int __devinit android_bind(struct usb_composite_dev *cdev)
 		android_config_driver.descriptors = otg_desc;
 
 	if (!usb_gadget_set_selfpowered(gadget))
+	{
 		android_config_driver.bmAttributes |= USB_CONFIG_ATT_SELFPOWER;
+		android_config_driver.bMaxPower	= 0x32; /* 100 mA */
+	}
 
-	if (gadget->ops->wakeup)
-		android_config_driver.bmAttributes |= USB_CONFIG_ATT_WAKEUP;
+	/* Supporting remote wakeup for mass storage only function
+	 * does n't make sense, since there are no notifications that
+	 * can be sent from mass storage during suspend */
+//	if (gadget->ops->wakeup)
+//		android_config_driver.bmAttributes |= USB_CONFIG_ATT_WAKEUP;
 
 	/* register our configuration */
 	ret = usb_add_config(cdev, &android_config_driver);
@@ -299,6 +344,7 @@ static int __devinit android_bind(struct usb_composite_dev *cdev)
 		return ret;
 	}
 
+#if 0
 	gcnum = usb_gadget_controller_number(gadget);
 	if (gcnum >= 0)
 		device_desc.bcdDevice = cpu_to_le16(0x0200 + gcnum);
@@ -314,6 +360,9 @@ static int __devinit android_bind(struct usb_composite_dev *cdev)
 			longname, gadget->name);
 		device_desc.bcdDevice = __constant_cpu_to_le16(0x9999);
 	}
+#endif
+	// For kies auto start (bcdDevice is 0x0400) 
+	device_desc.bcdDevice = __constant_cpu_to_le16(0x0400);
 
 	usb_gadget_set_selfpowered(gadget);
 	dev->cdev = cdev;
@@ -323,6 +372,53 @@ static int __devinit android_bind(struct usb_composite_dev *cdev)
 
 	return 0;
 }
+
+static ssize_t android_remote_wakeup(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct usb_gadget *gadget = _android_dev->cdev->gadget;
+
+	if (!gadget)
+		return -ENODEV;
+
+	pr_debug("Calling remote wakeup....\n");
+	usb_gadget_wakeup(gadget);
+
+	return count;
+}
+static DEVICE_ATTR(remote_wakeup, S_IWUSR, 0, android_remote_wakeup);
+
+static ssize_t android_show_compswitch(struct device *dev,
+					 struct device_attribute *attr,
+					 char *buf)
+{
+	int i;
+	
+	i = scnprintf(buf, PAGE_SIZE,
+			"composition product id = %x\n",product_id_inform);
+	
+	return i;
+}
+
+static ssize_t android_store_compswitch(struct device *dev,
+					  struct device_attribute *attr,
+					  const char *buf, size_t size)
+{
+	return size;
+}
+
+static DEVICE_ATTR(composition, 0664,
+		android_show_compswitch, android_store_compswitch);
+
+static struct attribute *android_attrs[] = {
+	&dev_attr_remote_wakeup.attr,
+	&dev_attr_composition.attr,
+	NULL,
+};
+
+static struct attribute_group android_attr_grp = {
+	.attrs = android_attrs,
+};
 
 static struct usb_composite_driver android_usb_driver = {
 	.name		= "android_usb",
@@ -362,8 +458,8 @@ static void android_set_function_mask(struct android_usb_product *up)
 
 	list_for_each_entry(func, &android_config_driver.functions, list) {
 		/* adb function enable/disable handled separetely */
-		if (!strcmp(func->name, "adb"))
-			continue;
+//		if (!strcmp(func->name, "adb"))
+//			continue;
 		func->disabled = 1;
 		for (index = 0; index < up->num_functions; index++) {
 			if (!strcmp(up->functions[index], func->name))
@@ -419,8 +515,12 @@ static void android_config_functions(struct usb_function *f, int enable)
 				break;
 		}
 		android_set_function_mask(up);
-	} else
+	} else{
+		if(dev->adb_enabled)
+			android_set_default_product(dev->adb_pid);
+		else
 		android_set_default_product(dev->product_id);
+}
 }
 #endif
 
@@ -429,6 +529,9 @@ void android_enable_function(struct usb_function *f, int enable)
 	struct android_dev *dev = _android_dev;
 	int disable = !enable;
 	int product_id;
+	struct usb_function *func;
+
+	mutex_lock(&dev->lock);
 
 	if (!!f->disabled != disable) {
 		f->disabled = disable;
@@ -440,27 +543,52 @@ void android_enable_function(struct usb_function *f, int enable)
 			 * if we are using RNDIS.
 			 */
 			if (enable) {
-#ifdef CONFIG_USB_ANDROID_RNDIS_WCEIS
-				dev->cdev->desc.bDeviceClass = USB_CLASS_MISC;
-				dev->cdev->desc.bDeviceSubClass      = 0x02;
-				dev->cdev->desc.bDeviceProtocol      = 0x01;
-#else
 				dev->cdev->desc.bDeviceClass = USB_CLASS_COMM;
-#endif
-			} else {
-				dev->cdev->desc.bDeviceClass = USB_CLASS_PER_INTERFACE;
 				dev->cdev->desc.bDeviceSubClass      = 0;
 				dev->cdev->desc.bDeviceProtocol      = 0;
+			} else {
+				if(dev->adb_enabled){
+					dev->cdev->desc.bDeviceClass = USB_CLASS_COMM;
+				dev->cdev->desc.bDeviceSubClass      = 0;
+				dev->cdev->desc.bDeviceProtocol      = 0;
+			}
+				else{
+					dev->cdev->desc.bDeviceClass 	= USB_CLASS_MASS_STORAGE;
+					dev->cdev->desc.bDeviceSubClass 		= 0x06;
+					dev->cdev->desc.bDeviceProtocol 		= 0x50;
+				}
 			}
 
 			android_config_functions(f, enable);
 		}
 #endif
+		if (!strcmp(f->name, "adb")) {
+			if(enable){
+				dev->cdev->desc.bDeviceClass = USB_CLASS_COMM;
+				dev->cdev->desc.bDeviceSubClass      = 0;
+				dev->cdev->desc.bDeviceProtocol      = 0;
+				dev->adb_enabled = 1;
+			}
+			else{
+				dev->cdev->desc.bDeviceClass 	= USB_CLASS_MASS_STORAGE;
+				dev->cdev->desc.bDeviceSubClass 		= 0x06;
+				dev->cdev->desc.bDeviceProtocol 		= 0x50;
+				dev->adb_enabled = 0;
+			}
+			android_config_functions(f, enable);
+		}
 
 		product_id = get_product_id(dev);
+		product_id_inform = product_id;
+		
+		if (!strcmp(f->name, "adb")) {
+			if(enable)
+				dev->adb_pid = product_id;
+		}
 		device_desc.idProduct = __constant_cpu_to_le16(product_id);
 		if (dev->cdev)
 			dev->cdev->desc.idProduct = device_desc.idProduct;
+		mutex_unlock(&dev->lock);
 		usb_composite_force_reset(dev->cdev);
 	}
 }
@@ -523,6 +651,30 @@ static void android_debugfs_cleanup(void)
        debugfs_remove(android_debug_root);
 }
 #endif
+
+void get_usb_serial(char *usb_serial_number)
+{
+	char temp_serial_number[20] = "1234567890ABCDEF";
+
+	unsigned int unique_serial_number=0;
+
+	unique_serial_number = (system_serial_high << 16) + (system_serial_low >> 16);
+#if defined(CONFIG_MACH_CALLISTO)
+	sprintf(temp_serial_number,"I5510%08x",unique_serial_number);
+#elif defined(CONFIG_MACH_EUROPA)
+	sprintf(temp_serial_number,"I5500%08x",unique_serial_number);
+#elif defined(CONFIG_MACH_COOPER)
+	sprintf(temp_serial_number,"S5830%08x",unique_serial_number);
+#elif defined(CONFIG_MACH_BENI)
+	sprintf(temp_serial_number,"S5670%08x",unique_serial_number);
+#elif defined(CONFIG_MACH_TASS)
+	sprintf(temp_serial_number,"S5570%08x",unique_serial_number);
+#elif defined(CONFIG_MACH_LUCAS)
+	sprintf(temp_serial_number,"B7510%08x",unique_serial_number);
+#endif
+	strcpy(usb_serial_number,temp_serial_number);
+}
+
 static int __init android_probe(struct platform_device *pdev)
 {
 	struct android_usb_platform_data *pdata = pdev->dev.platform_data;
@@ -566,11 +718,38 @@ static int __init android_probe(struct platform_device *pdev)
 		if (pdata->serial_number)
 			strings_dev[STRING_SERIAL_IDX].s = pdata->serial_number;
 	}
+	
+	strings_dev[STRING_PRODUCT_IDX].s = pdata->product_name;
+	strings_dev[STRING_MANUFACTURER_IDX].s = pdata->manufacturer_name;
+	
+	if(system_serial_high != 0 || system_serial_low !=0)
+	{
+		get_usb_serial(serial_number);
+		strings_dev[STRING_SERIAL_IDX].s = serial_number;
+	}
+	else
+	{
+		if (pdata->serial_number)
+		{
+			strings_dev[STRING_SERIAL_IDX].s = pdata->serial_number;
+		}
+		else
+		{
+			strings_dev[STRING_SERIAL_IDX].s = serial_number;
+		}
+	}
+	strcpy(serial_number, strings_dev[STRING_SERIAL_IDX].s);
+	
 #ifdef CONFIG_DEBUG_FS
 	result = android_debugfs_init(dev);
 	if (result)
 		pr_debug("%s: android_debugfs_init failed\n", __func__);
 #endif
+	result = sysfs_create_group(&pdev->dev.kobj, &android_attr_grp);
+	if (result < 0) {
+		pr_err("%s: Failed to create the sysfs entry \n", __func__);
+		return result;
+	}
 	return usb_composite_register(&android_usb_driver);
 }
 
@@ -609,6 +788,11 @@ static int __init init(void)
 	dev->product_id = PRODUCT_ID;
 	_android_dev = dev;
 
+	mutex_init(&dev->lock);
+
+	/* To register dun driver*/
+	modem_register();
+
 	return platform_driver_probe(&android_platform_driver, android_probe);
 }
 module_init(init);
@@ -619,6 +803,7 @@ static void __exit cleanup(void)
 	android_debugfs_cleanup();
 #endif
 	usb_composite_unregister(&android_usb_driver);
+	modem_unregister();
 	platform_driver_unregister(&android_platform_driver);
 	kfree(_android_dev);
 	_android_dev = NULL;

@@ -87,6 +87,26 @@ static struct usb_descriptor_header *hs_diag_desc[] = {
 	NULL,
 };
 
+/* string descriptors: */
+
+#define DIAG_IDX	0
+
+/* static strings, in UTF-8 */
+static struct usb_string diag_string_defs[] = {
+	[DIAG_IDX].s = "Samsung Android DIAG",
+	{  /* ZEROES END LIST */ },
+};
+
+static struct usb_gadget_strings diag_string_table = {
+	.language =		0x0409,	/* en-us */
+	.strings =		diag_string_defs,
+};
+
+static struct usb_gadget_strings *diag_strings[] = {
+	&diag_string_table,
+	NULL,
+};
+
 /**
  * struct diag_context - USB diag function driver private structure
  * @android_function: Used for registering with Android composite driver
@@ -573,7 +593,7 @@ int diag_function_add(struct usb_configuration *c)
 {
 	struct diag_context *dev;
 	struct usb_diag_ch *_ch;
-	int found = 0, ret;
+	int found = 0, ret, status;
 
 	DBG(c->cdev, "diag_function_add\n");
 
@@ -590,17 +610,29 @@ int diag_function_add(struct usb_configuration *c)
 	}
 
 	dev = container_of(_ch, struct diag_context, ch);
+
+	/* maybe allocate device-global string IDs, and patch descriptors */
+
+	status = usb_string_id(c->cdev);
+	if (status < 0)
+		return status;
+	diag_string_defs[DIAG_IDX].id = status;
+	intf_desc.iInterface = status;
+
 	/* claim the channel for this USB interface */
 	_ch->priv_usb = dev;
 
 	dev->cdev = c->cdev;
 	dev->function.name = _ch->name;
+	dev->function.strings = diag_strings;
 	dev->function.descriptors = fs_diag_desc;
 	dev->function.hs_descriptors = hs_diag_desc;
 	dev->function.bind = diag_function_bind;
 	dev->function.unbind = diag_function_unbind;
 	dev->function.set_alt = diag_function_set_alt;
 	dev->function.disable = diag_function_disable;
+	/* start disabled */
+	dev->function.disabled= 1;
 	spin_lock_init(&dev->lock);
 	INIT_LIST_HEAD(&dev->read_pool);
 	INIT_LIST_HEAD(&dev->write_pool);

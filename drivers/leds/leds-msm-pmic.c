@@ -21,31 +21,85 @@
 #include <linux/init.h>
 #include <linux/platform_device.h>
 #include <linux/leds.h>
+#include <mach/vreg.h>
 
 #include <mach/pmic.h>
+#include <linux/gpio.h>
 
-#define MAX_KEYPAD_BL_LEVEL	16
+//#define MAX_KEYPAD_BL_LEVEL	16
+
+extern int board_hw_revision;
+#if defined(CONFIG_MACH_CALLISTO)
+static unsigned char n_GPIO_KEY_LED_EN = 78;
+#else
+static unsigned char n_GPIO_KEY_LED_EN = 97;
+#endif
+#if defined(CONFIG_MACH_COOPER)
+static struct vreg *vreg_keyled;
+#endif
 
 static void msm_keypad_bl_led_set(struct led_classdev *led_cdev,
 	enum led_brightness value)
 {
-	int ret;
+//	int ret;
 
-	ret = pmic_set_led_intensity(LED_KEYPAD, value / MAX_KEYPAD_BL_LEVEL);
-	if (ret)
-		dev_err(led_cdev->dev, "can't set keypad backlight\n");
+	// hsil
+	printk("[KeyLED] %s: value=%d\n", __func__, value);
+
+#if defined(CONFIG_MACH_COOPER)
+	if ( board_hw_revision >= 0x3 )
+	{
+	if (value)
+		vreg_enable(vreg_keyled);
+	else
+		vreg_disable(vreg_keyled);
+	}
+	else
+	{
+		if (value)
+			gpio_set_value(n_GPIO_KEY_LED_EN, 1);
+		else
+			gpio_set_value(n_GPIO_KEY_LED_EN, 0);
+	}
+#endif
+
+#if defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_CALLISTO)
+	if (value)
+		gpio_set_value(n_GPIO_KEY_LED_EN, 1);
+	else
+		gpio_set_value(n_GPIO_KEY_LED_EN, 0);
+#endif
+
+//	ret = pmic_set_led_intensity(LED_KEYPAD, value / MAX_KEYPAD_BL_LEVEL);
+//	if (ret)
+//		dev_err(led_cdev->dev, "can't set keypad backlight\n");
 }
 
 static struct led_classdev msm_kp_bl_led = {
-	.name			= "keyboard-backlight",
+	.name			= "button-backlight",
 	.brightness_set		= msm_keypad_bl_led_set,
 	.brightness		= LED_OFF,
 };
 
 static int msm_pmic_led_probe(struct platform_device *pdev)
 {
-	int rc;
+	int rc, ret = 0;
+#ifndef CONFIG_MACH_COOPER
+	struct vreg *vreg_keyled;
+#endif
 
+#ifdef CONFIG_MACH_COOPER
+	if ( board_hw_revision >= 0x3 )
+	{
+	vreg_keyled = vreg_get(NULL, "ldo17");
+	ret = vreg_set_level(vreg_keyled, OUT3300mV);
+	}
+	else
+	{
+		vreg_keyled = vreg_get(NULL, "ldo4");
+		ret = vreg_set_level(vreg_keyled, OUT3000mV);
+	}
+#endif
 	rc = led_classdev_register(&pdev->dev, &msm_kp_bl_led);
 	if (rc) {
 		dev_err(&pdev->dev, "unable to register led class driver\n");
@@ -95,6 +149,12 @@ static struct platform_driver msm_pmic_led_driver = {
 
 static int __init msm_pmic_led_init(void)
 {
+#if defined(CONFIG_MACH_LUCAS)
+	n_GPIO_KEY_LED_EN = 58;
+#elif defined(CONFIG_MACH_CALLISTO)
+	if( board_hw_revision < 3 )
+		n_GPIO_KEY_LED_EN = 77;
+#endif
 	return platform_driver_register(&msm_pmic_led_driver);
 }
 module_init(msm_pmic_led_init);

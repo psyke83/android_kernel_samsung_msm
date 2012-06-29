@@ -747,9 +747,9 @@ int fserial_modem_bind_config(struct usb_configuration *c)
 	 * serial ports. But for now allocate
 	 * two ports for modem and nmea.
 	 */
-	ret = gserial_setup(c->cdev->gadget, 2);
-	if (ret)
-		return ret;
+//	ret = gserial_setup(c->cdev->gadget, 2);
+//	if (ret)
+//		return ret;
 	return gser_bind_config(c, 0);
 }
 

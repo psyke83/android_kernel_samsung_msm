@@ -976,7 +976,7 @@ config VIDEO_OMAP2
 menuconfig V4L_USB_DRIVERS
 	bool "V4L USB devices"
 	depends on USB
-	default y
+	default n
 
 if V4L_USB_DRIVERS && USB
 

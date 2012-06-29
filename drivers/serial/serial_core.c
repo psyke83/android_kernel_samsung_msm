@@ -1690,6 +1690,8 @@ static int uart_open(struct tty_struct *tty, struct file *filp)
 	}
 
 fail:
+ 	if (retval)
+		printk(KERN_ERR "uart_open(%d) failed(%d)\n", line, retval);
 	return retval;
 }
 

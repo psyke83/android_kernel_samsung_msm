@@ -105,6 +105,7 @@ struct usb_function {
 
 	/* disabled is zero if the function is enabled */
 	int				disabled;
+	int			(*intf_num_set)(struct usb_configuration *, struct usb_function *, int intf_id);
 
 	/* REVISIT:  bind() functions can be marked __init, which
 	 * makes trouble for section mismatch analysis.  See if

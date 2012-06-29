@@ -31,6 +31,11 @@ static DEFINE_MUTEX(clocks_mutex);
 static DEFINE_SPINLOCK(ebi1_vote_lock);
 static LIST_HEAD(clocks);
 
+// hsil
+int what_clk[103];
+int req_clk[103];
+EXPORT_SYMBOL(what_clk);
+EXPORT_SYMBOL(req_clk);
 static struct notifier_block axi_freq_notifier_block;
 
 /*
@@ -38,13 +43,32 @@ static struct notifier_block axi_freq_notifier_block;
  */
 int clk_enable(struct clk *clk)
 {
+	what_clk[clk->id] = 1;	
+//	printk("++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+//	printk("[HSIL] %s : %s: %d\n", __func__, clk->name, clk->id);
+//	printk("++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+		req_clk[clk->id] = 1;	
 	return clk->ops->enable(clk->id);
 }
 EXPORT_SYMBOL(clk_enable);
 
+unsigned clk_is_enabled(struct clk *clk)
+{
+	return clk->ops->is_enabled(clk->id);
+}
+EXPORT_SYMBOL(clk_is_enabled);
+
 void clk_disable(struct clk *clk)
 {
+	what_clk[clk->id] = 0;	
+//	printk("----------------------------------------------------\n");	
+//	printk("[HSIL] %s : %s: %d\n", __func__, clk->name, clk->id);
+//	printk("----------------------------------------------------\n");	
 	clk->ops->disable(clk->id);
+	if (!clk->ops->is_enabled(clk->id))
+	{
+		req_clk[clk->id] = 0;	
+	}
 }
 EXPORT_SYMBOL(clk_disable);
 
@@ -186,6 +210,14 @@ void __init msm_clock_init(struct clk_lookup *clock_tbl, unsigned num_clocks)
 {
 	unsigned n;
 	struct clk *clk;
+	// hsil
+	int i;
+
+	for (i=0; i<103; i++)
+	{
+		what_clk[i] = 0;
+		req_clk[i] = 0;
+	}
 
 	/* Do SoC-speficic clock init operations. */
 	msm_clk_soc_init();

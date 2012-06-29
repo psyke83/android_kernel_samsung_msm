@@ -153,6 +153,29 @@ static int log_buf_len = __LOG_BUF_LEN;
 static unsigned logged_chars; /* Number of chars produced since last read+clear operation */
 static int saved_console_loglevel = -1;
 
+/* Mark for GetLog */
+
+struct struct_kernel_log_mark {
+	u32 special_mark_1;
+	u32 special_mark_2;
+	u32 special_mark_3;
+	u32 special_mark_4;
+	void *p__log_buf;
+};
+
+static struct struct_kernel_log_mark kernel_log_mark = {
+	.special_mark_1 = (('*' << 24) | ('^' << 16) | ('^' << 8) | ('*' << 0)),
+	.special_mark_2 = (('I' << 24) | ('n' << 16) | ('f' << 8) | ('o' << 0)),
+	.special_mark_3 = (('H' << 24) | ('e' << 16) | ('r' << 8) | ('e' << 0)),
+	.special_mark_4 = (('k' << 24) | ('l' << 16) | ('o' << 8) | ('g' << 0)),
+#if defined(CONFIG_MACH_EUROPA)
+	.p__log_buf = __log_buf+0x200000,
+#endif	// CONFIG_MACH_EUROPA
+#if defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
+	.p__log_buf = __log_buf,
+#endif	// CONFIG_MACH_CALLISTO
+};
+
 #ifdef CONFIG_KEXEC
 /*
  * This appends the listed symbols to /proc/vmcoreinfo
@@ -207,6 +230,13 @@ static int __init log_buf_len_setup(char *str)
 		printk(KERN_NOTICE "log_buf_len: %d\n", log_buf_len);
 	}
 out:
+	/* Mark for GetLog */
+#if defined(CONFIG_MACH_EUROPA)
+	kernel_log_mark.p__log_buf = __log_buf+0x200000;
+#endif	// CONFIG_MACH_EUROPA
+#if defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
+	kernel_log_mark.p__log_buf = __log_buf;
+#endif	// CONFIG_MACH_CALLISTO
 	return 1;
 }
 

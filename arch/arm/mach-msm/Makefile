@@ -13,6 +13,8 @@ ifndef CONFIG_ARCH_MSM8X60
 	endif
 endif
 
+obj-y += drop_caches.o
+
 obj-$(CONFIG_ARCH_MSM_ARM11) += acpuclock.o timer.o
 obj-$(CONFIG_ARCH_MSM_SCORPION) += timer.o
 obj-$(CONFIG_ARCH_MSM_SCORPION) += pmu.o
@@ -141,7 +143,7 @@ obj-$(CONFIG_MACH_MSM8X60_QRDC) += board-qrdc.o
 obj-$(CONFIG_TROUT_H2W) += board-trout-h2w.o
 obj-$(CONFIG_TROUT_BATTCHG) += htc_battery.o
 obj-$(CONFIG_TROUT_PWRSINK) += htc_pwrsink.o
-obj-$(CONFIG_ARCH_MSM7X27) += board-msm7x27.o devices-msm7x27.o
+obj-$(CONFIG_ARCH_MSM7X27) += board-msm7x27.o devices-msm7x27.o msm_vibrator.o
 obj-$(CONFIG_ARCH_MSM7X30) += board-msm7x30.o devices-msm7x30.o memory_topology.o
 obj-$(CONFIG_ARCH_MSM7X30) += clock-local.o clock-7x30.o acpuclock-7x30.o
 obj-$(CONFIG_ARCH_MSM7X25) += board-msm7x27.o devices-msm7x25.o
@@ -155,6 +157,7 @@ obj-$(CONFIG_TROUT_BATTCHG) += htc_battery.o
 
 obj-$(CONFIG_HTC_PWRSINK) += htc_pwrsink.o
 obj-$(CONFIG_HTC_HEADSET) += htc_headset.o
+obj-$(CONFIG_SEC_HEADSET) += board-europa-headset.o
 obj-$(CONFIG_MSM_RMT_STORAGE_CLIENT) += rmt_storage_client.o
 obj-$(CONFIG_MSM_SDIO_SMEM) += sdio_smem.o
 obj-$(CONFIG_PMIC8058) += pmic8058-gpio.o pmic8058-mpp.o
