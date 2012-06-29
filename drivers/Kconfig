@@ -7,7 +7,7 @@ source "drivers/connector/Kconfig"
 source "drivers/mtd/Kconfig"
 
 # for FSR
-#@source "drivers/fsr/Kconfig"
+source "drivers/fsr/Kconfig"
   
 # for TINY_FSR
 source "drivers/tfsr/Kconfig"
