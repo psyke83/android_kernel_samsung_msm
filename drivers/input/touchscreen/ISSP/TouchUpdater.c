@@ -62,7 +62,7 @@ unsigned char Firmware_Data_HW1[]=
 #include "Firmware_BENI0A_HW04.h"
 #elif defined(CONFIG_MACH_TASS)
 #include "Firmware_TASS0C_HW01.h"
-#elif defined(CONFIG_MACH_CALLISTO)
+#elif defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_EUROPA)
 #include "Firmware_ver04.h"
 #endif
 };
@@ -74,6 +74,8 @@ unsigned char Firmware_Data_HW2[]=
 #include "Firmware_TASS07_HW11.h"
 #elif defined(CONFIG_MACH_CALLISTO)
 #include "Firmware_ver04_HW02.h"
+#elif defined(CONFIG_MACH_EUROPA)
+#include "Firmware_ver09_HW02.h"
 #endif
 };
 unsigned char Firmware_Data_HW3[]= 

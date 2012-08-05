@@ -6,5 +6,7 @@
 #include "synaptics_i2c_rmi4_tass.c"
 #elif defined(CONFIG_MACH_LUCAS)
 #include "synaptics_i2c_rmi4_lucas.c"
+#elif defined(CONFIG_MACH_EUROPA)
+#include "synaptics_i2c_rmi4_europa.c"
 #else
 #endif
