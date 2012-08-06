@@ -35,7 +35,7 @@ obj-$(CONFIG_S5K3E2FX) += s5k3e2fx.o
 ifeq ($(CONFIG_MSM_CAMERA_V4L2),y)
   obj-$(CONFIG_VX6953) += vx6953_v4l2.o vx6953_reg_v4l2.o
 else
-obj-$(CONFIG_VX6953) += vx6953.o vx6953_reg.o
+  obj-$(CONFIG_VX6953) += vx6953.o vx6953_reg.o
 endif
 obj-$(CONFIG_VB6801) += vb6801.o
 obj-$(CONFIG_IMX074) += imx074.o imx074_reg.o

@@ -829,7 +829,7 @@ static struct msm_queue_cmd *__msm_control(struct msm_sync *sync,
 			queue->wait,
 			!list_empty_careful(&queue->list),
 			timeout);
-	CDBG("Waiting over for config status \n");
+	CDBG("Waiting over for config status\n");
 	if (list_empty_careful(&queue->list)) {
 		if (!rc) {
 			rc = -ETIMEDOUT;
@@ -1262,7 +1262,7 @@ static int msm_ctrl_cmd_done(struct msm_control_device *ctrl_pmsm,
 		ctrl_pmsm->pmsm->sync->ignore_qcmd = false;
 		ctrl_pmsm->pmsm->sync->ignore_qcmd_type = -1;
 	} else /* wake up control thread */
-	msm_enqueue(&ctrl_pmsm->ctrl_q, &qcmd->list_control);
+		msm_enqueue(&ctrl_pmsm->ctrl_q, &qcmd->list_control);
 	return 0;
 }
 

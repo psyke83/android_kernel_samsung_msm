@@ -36,7 +36,6 @@
 #include <linux/mutex.h>
 #include <linux/msm_kgsl.h>
 #include <linux/idr.h>
-#include <linux/wakelock.h>
 
 #include <asm/atomic.h>
 
@@ -80,16 +79,10 @@ struct kgsl_device_private;
 struct kgsl_context;
 
 struct kgsl_functable {
-	void (*device_regread) (struct kgsl_device *device,
+	int (*device_regread) (struct kgsl_device *device,
 					unsigned int offsetwords,
 					unsigned int *value);
-	void (*device_regwrite) (struct kgsl_device *device,
-					unsigned int offsetwords,
-					unsigned int value);
-	void (*device_regread_isr) (struct kgsl_device *device,
-					unsigned int offsetwords,
-					unsigned int *value);
-	void (*device_regwrite_isr) (struct kgsl_device *device,
+	int (*device_regwrite) (struct kgsl_device *device,
 					unsigned int offsetwords,
 					unsigned int value);
 	int (*device_setstate) (struct kgsl_device *device, uint32_t flags);
@@ -166,7 +159,6 @@ struct kgsl_device {
 
 	struct workqueue_struct *work_queue;
 	struct idr context_idr;
-	struct wake_lock idle_wakelock;
 };
 
 struct kgsl_context {
