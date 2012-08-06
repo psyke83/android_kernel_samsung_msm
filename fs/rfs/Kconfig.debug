@@ -1,0 +1,100 @@
+comment "RFS debugging options"
+	depends on RFS_FS
+
+config RFS_FS_DEBUG
+	bool "RFS Debugging Message support"
+	default	y
+	depends on RFS_FS
+
+menu "Additional RFS debugging messages"
+	depends on RFS_FS_DEBUG
+
+choice
+	prompt "RFS debugging level"
+	default RFS_FS_DEBUG_LEVEL_1
+
+config RFS_FS_DEBUG_LEVEL_0
+	bool "Panic Error-0"
+
+config RFS_FS_DEBUG_LEVEL_1
+	bool "Critical Error-1"
+
+config RFS_FS_DEBUG_LEVEL_2
+	bool "Normal Error-2"
+
+config RFS_FS_DEBUG_LEVEL_3
+	bool "System Error-3"
+
+config RFS_FS_DEBUG_LEVEL_4
+	bool "Information Message-4"
+
+config RFS_FS_DEBUG_LEVEL_5
+	bool "Debugging Message-5"
+
+config RFS_FS_DEBUG_LEVEL_6
+	bool "Verbose Message-6"
+
+endchoice
+
+#config RFS_FS_DEBUG_LEVEL
+#	int "RFS debugging verbosity (0 = quiet ... 6 = verbose)"
+#	default 1
+#	range 0 6
+#	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_VOL
+	bool "Volume Layer(superblock operation) message"
+	default y
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_VNODE
+	bool "Vnode Layer(inode operation) message"
+	default y
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_DIR
+	bool "Dir Layer(dir inode operation) message"
+	default y
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_FILE
+	bool "File Layer(file operation) message"
+	default y
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_BCACHE
+	bool "BCache Layer(block I/O) message"
+	default n
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_XATTR
+	bool "Xattr operation message"
+	default n
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_OAM
+	bool "OAM Layer(OS Adaptation layer) message"
+	default y
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_DEV
+	bool "Logical Device message"
+	default y
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_API
+	bool "RFS API Layer(VFS Api) message"
+	default y
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_CORE
+	bool "NativeFS Layer message"
+	default y
+	depends on RFS_FS_DEBUG
+
+config RFS_FS_DEBUG_MSG_BASE
+	bool "Nestle Layer message"
+	default y
+	depends on RFS_FS_DEBUG
+
+endmenu

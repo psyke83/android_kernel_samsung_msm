@@ -1,0 +1,38 @@
+menu "RFS Core Filesystems"
+
+# FAT Core Filesystem (BTFS)
+config RFS_FS_CORE_FAT
+	tristate "FAT Filesystem Support"
+	default y
+	depends on RFS_FS
+	help
+	RFS supports the FAT-based filesystem core and transactional filesystem.
+
+# FAT32 support
+config RFS_FS_FAT_VFAT
+	bool "Support FAT32 & Long File Name"
+	default y
+	depends on RFS_FS_CORE_FAT
+	help
+	RFS supports FAT32 and Long File Name
+
+config RFS_FS_FAT_DEBUG_LEVEL
+	int "FAT debugging verbosity (0 = quiet ... 6 = verbose)"
+	default 1
+	range 0 6
+	depends on RFS_FS_CORE_FAT && RFS_FS_DEBUG
+
+#config RFS_FS_FAT_HPA
+#	bool "RFS Hidden-protected Area support"
+#	depends on RFS_FS_CORE_FAT
+#	help
+#	HPA(Hidden protected Area)
+
+#config RFS_FS_FAT_VERSION
+#	string
+#	default ""
+#	depends on RFS_FS_CORE_FAT
+
+endmenu
+
+

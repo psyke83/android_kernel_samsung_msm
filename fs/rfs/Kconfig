@@ -1,0 +1,115 @@
+menu "RFS Filesystem"
+
+config RFS_FS
+	tristate "RFS Filesystem support"
+	default m
+	select NLS
+	help	
+	Samsung Transactional File System support.
+
+config RFS_DEFAULT_IOCHARSET
+	string "Use default iocharset"
+	default "cp437"
+	depends on RFS_FS
+	help
+	The default input/output character set.
+
+	Character set to use for converting between the encoding is
+	used for user visible filename and 16 bit Unicode characters (for NativeFS).
+
+	If you want to use another character set instead of the default,
+	you should set the mount option "iocharset=<name>"
+	such as "iocharset=iso8859-1".
+
+
+config RFS_FS_XATTR
+	bool "RFS extended attributes"
+	default y
+	depends on RFS_FS
+	help
+	Extended attributes are name:value pairs associated with inodes
+	by the kernel or by users (see the attr(5) manual page,
+	or visit <http://acl.bestbits.at/> for details).
+
+	If unsure, say N.
+
+	WARN!! This feature is NOT compatible with FAT filesystem
+	such as Linux vfat or MS-DOS.
+
+#config RFS_FS_POSIX_ACL
+#	bool "RFS POSIX Access Control Lists"
+#	default n
+#	depends on RFS_FS_XATTR
+#	select FS_POSIX_ACL
+#	help
+#	Posix Access Control Lists (ACLs) support permissions for users and
+#	groups beyond the owner/group/world scheme.
+#
+#	To learn more about Access Control Lists, visit the Posix ACLs for
+#	Linux website <http://acl.bestbits.at/>.
+#
+#	If you don't know what Access Control Lists are, say N
+
+config RFS_FS_SECURITY
+	bool "RFS Security Labels"
+	default y
+	depends on RFS_FS_XATTR
+	help
+	Security labels support alternative access control models
+	implemented by security modules like SELinux.
+	This option enables an extended attribute namespace
+	for inode security labels in the RFS filesystem.
+
+# support 'MOUNT_FILE_GUID' (uid/gid/permission)
+config RFS_FS_PERMISSION
+	bool "RFS File Permission"
+	default y
+	depends on RFS_FS
+	help
+	Basically, FAT file system does not support user-ID, group-ID.
+	However RFS supports user/group ID and its permission (rwx),
+	if you select <Y>.
+	
+	If unsure or compatibility is very important, say N.
+
+	WARN!! This feature is NOT compatible with FAT filesystem
+	such as Linux vfat or MS-DOS.
+
+config RFS_FS_SYNC_ON_CLOSE
+	bool "Sync-On-Close support"
+	default n
+	depends on RFS_FS
+	help
+	close() "flushes" all modified in-core data of the file
+	and metadata information associated with the file,
+	if you select <Y>.
+	The latency of close() could be longer, because it waits for
+	the end of write I/O to guarantee data and metadata of the file.
+	
+#config RFS_FS_DEBUG
+#	bool "RFS Debugging Message support"
+#	default	y
+#	depends on RFS_FS
+
+#config RFS_FS_DEBUG_LEVEL
+#	int "RFS debugging verbosity (0 = quiet ... 6 = verbose)"
+#	default 1
+#	depends on RFS_FS_DEBUG
+
+# support 'MOUNT_ERASE_SECTOR' : call stl_delete
+config RFS_FS_ERASE_SECTOR
+	bool
+	default y
+	depends on RFS_FS && RFS_STL_DELETE
+
+# support 'MOUNT_FILE_SPECIAL' : enable symlink, socket, fifo (special file)
+config RFS_FS_SPECIAL
+	bool
+	default y
+	depends on RFS_FS
+
+source "fs/rfs/Kconfig.debug"
+
+source fs/rfs/Kconfig.native
+
+endmenu
