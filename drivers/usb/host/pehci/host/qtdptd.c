@@ -79,6 +79,7 @@ phci_hcd_qtd_list_free(phci_hcd	* ehci,
 	list_for_each_safe(entry, temp,	qtd_list) {
 		struct ehci_qtd	*qtd;
 		qtd = list_entry(entry,	struct ehci_qtd, qtd_list);
+	if(!list_empty(&qtd->qtd_list))
 		list_del_init(&qtd->qtd_list);
 		qha_free(qha_cache, qtd);
 	}
@@ -496,8 +497,10 @@ phci_hcd_qh_link_async(phci_hcd	* hcd, struct ehci_qh *qh, int *status)
 	struct ehci_qtd	*qtd = 0;
 	struct list_head *qtd_list = &qh->qtd_list;
 
+#ifdef MSEC_INT_BASED
 	td_ptd_map_buff_t *ptd_map_buff;
 	td_ptd_map_t *td_ptd_map;
+#endif
 
 	/*  take the first td, in case we are not able to schedule the new td
 	   and this is going for remove
@@ -817,7 +820,7 @@ phci_hcd_qh_append_tds(phci_hcd	* hcd,
 			/* no URB queued */
 		} else {
 
-			qh->qh_state = QH_STATE_IDLE;
+	//		qh->qh_state = QH_STATE_IDLE;
 
 
 			/* usb_clear_halt() means qh data toggle gets reset */
@@ -895,6 +898,9 @@ phci_hcd_submit_async(phci_hcd * hcd,
 #endif
 
 	spin_lock(&hcd_data_lock);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
+	usb_hcd_link_urb_to_ep(&hcd->usb_hcd, urb);
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,24)
 	qh = phci_hcd_qh_append_tds(hcd, ep, urb, qtd_list, &ep->hcpriv,
 		status);
@@ -903,6 +909,9 @@ phci_hcd_submit_async(phci_hcd * hcd,
 		status);
 #endif
 	if (!qh	|| *status < 0) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
+		usb_hcd_unlink_urb_from_ep(&hcd->usb_hcd, urb);
+#endif
 		goto cleanup;
 	}
 	/* Control/bulk	operations through TTs don't need scheduling,
@@ -911,6 +920,7 @@ phci_hcd_submit_async(phci_hcd * hcd,
 
 	/* now the quehead can not be in the unlink state */
 
+//	printk("qh->qh_state:0x%x \n",qh->qh_state);
 	if (qh->qh_state == QH_STATE_UNLINK) {
 		pehci_info("%s:	free the urb,qh->state %x\n", __FUNCTION__,
 			   qh->qh_state);
@@ -1291,6 +1301,13 @@ phci_hcd_qha_from_qtd(phci_hcd * hcd,
 
 	td_info4 |= (qh->ping << 26);
 	qha->td_info4 =	td_info4;
+#ifdef PTD_DUMP_SCHEDULE
+	printk("SCHEDULE PTD DUMPE\n") ;
+	printk("SDW0: 0x%08x\n",qha->td_info1);
+	printk("SDW1: 0x%08x\n",qha->td_info2);
+	printk("SDW2: 0x%08x\n",qha->td_info3);
+	printk("SDW3: 0x%08x\n",qha->td_info4);
+#endif
 	pehci_print("%s: fourt word 0x%08x\n", __FUNCTION__, qha->td_info4);
 	pehci_entry("--	%s: Exit, qha %p\n", __FUNCTION__, qha);
 	return qha;

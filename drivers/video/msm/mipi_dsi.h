@@ -43,12 +43,15 @@
 
 #define MIPI_DSI_BASE mipi_dsi_base
 
-#ifdef CONFIG_MSM_SECURE_IO
-#define MIPI_OUTP(addr, data) secure_writel((data), (addr))
-#define MIPI_INP(addr) secure_readl(addr)
-#else
 #define MIPI_OUTP(addr, data) writel((data), (addr))
 #define MIPI_INP(addr) readl(addr)
+
+#ifdef CONFIG_MSM_SECURE_IO
+#define MIPI_OUTP_SECURE(addr, data) secure_writel((data), (addr))
+#define MIPI_INP_SECURE(addr) secure_readl(addr)
+#else
+#define MIPI_OUTP_SECURE(addr, data) writel((data), (addr))
+#define MIPI_INP_SECURE(addr) readl(addr)
 #endif
 
 #define MIPI_DSI_PRIM 1
@@ -105,12 +108,15 @@ enum {		/* mipi dsi panel */
 #define DSI_CMD_TRIGGER_SW_TE		0x06
 
 extern struct device dsi_dev;
+extern int mipi_dsi_clk_on;
 
 struct dsi_clk_desc {
 	uint32 src;
 	uint32 m;
 	uint32 n;
 	uint32 d;
+	uint32 mnd_mode;
+	uint32 pre_div_func;
 };
 
 #define DSI_HOST_HDR_SIZE	4
@@ -201,6 +207,8 @@ void mipi_dsi_cmd_bta_sw_trigger(void);
 void mipi_dsi_ack_err_status(void);
 void mipi_dsi_set_tear_on(struct msm_fb_data_type *mfd);
 void mipi_dsi_set_tear_off(struct msm_fb_data_type *mfd);
+void mipi_dsi_clk_enable(void);
+void mipi_dsi_clk_disable(void);
 
 irqreturn_t mipi_dsi_isr(int irq, void *ptr);
 

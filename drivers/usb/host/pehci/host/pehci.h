@@ -26,6 +26,7 @@
 #ifndef	__PEHCI_H__
 #define	__PEHCI_H__
 
+
 #define	DRIVER_AUTHOR	"ST-ERICSSON	  "
 #define	DRIVER_DESC "ISP1763 'Enhanced'	Host Controller	(EHCI) Driver"
 
@@ -77,11 +78,11 @@
 #define	QHA_ACTIVE		(1<<31)
 
 /*1763 error bit maps*/
-#define	HC_SOF_INT		(1<< 0)
+#define	HC_MSOF_INT		(1<< 0)
 #define	HC_MSEC_INT		(1 << 1)
 #define	HC_EOT_INT		(1 << 3)
-#define   HC_OPR_REG_INT	(1<<4)
-#define   HC_CLK_RDY_INT	(1<<6)
+#define     HC_OPR_REG_INT	(1<<4)
+#define     HC_CLK_RDY_INT	(1<<6)
 #define	HC_INTL_INT		(1 << 7)
 #define	HC_ATL_INT		(1 << 8)
 #define	HC_ISO_INT		(1 << 9)
@@ -461,6 +462,15 @@ struct _isp1763_hcd;
 
 #include <linux/usb/hcd.h>
 
+#define USBNET
+#ifdef USBNET 
+struct isp1763_async_cleanup_urb {
+        struct list_head urb_list;
+        struct urb *urb;
+};
+#endif
+
+
 /*host controller*/
 typedef	struct _phci_hcd {
 
@@ -505,6 +515,9 @@ typedef	struct _phci_hcd {
 	struct timer_list watchdog;
 	void (*worker_function)	(struct	_phci_hcd * hcd);
 	struct _periodic_list periodic_list[PTD_PERIODIC_SIZE];
+#ifdef USBNET 
+	struct isp1763_async_cleanup_urb cleanup_urb;
+#endif
 } phci_hcd, *pphci_hcd;
 
 /*usb_device->hcpriv, points to	this structure*/
@@ -561,14 +574,16 @@ phci_mem_cleanup(void)
 #define	qha_alloc(t,c)			kmalloc(t,ALLOC_FLAGS)
 #define	qha_free(c,x)			kfree(x)
 #define	qha_cache			0
+
+
 #ifdef CONFIG_ISO_SUPPORT
 /*memory constants*/
 #define BLK_128_	2
 #define BLK_256_	3
 #define BLK_1024_	1
 #define BLK_2048_	3
-#define BLK_4096_	1
-#define BLK_8196_	1
+#define BLK_4096_	3 //1
+#define BLK_8196_	0 //1
 #define BLK_TOTAL	(BLK_128_+BLK_256_ + BLK_1024_ +BLK_2048_+ BLK_4096_+BLK_8196_)
 
 #define BLK_SIZE_128	128
@@ -667,6 +682,7 @@ phci_mem_cleanup(void)
 /* urb state*/
 #define	DELETE_URB			0x0008
 #define	NO_TRANSFER_ACTIVE		0xFFFF
+#define	NO_TRANSFER_DONE		0x0000
 #define	MAX_PTD_BUFFER_SIZE		4096	/*max ptd size */
 
 /*information of the td	in headers of host memory*/
@@ -704,7 +720,7 @@ typedef	struct td_ptd_map_buff {
 
 #define     USB_HCD_MAJOR           0
 #define     USB_HCD_MODULE_NAME     "isp1763hcd"
-static char devpath[] = "/dev/isp1763hcd";
+/* static char devpath[] = "/dev/isp1763hcd"; */
 
 #define HCD_IOC_MAGIC	'h'
 

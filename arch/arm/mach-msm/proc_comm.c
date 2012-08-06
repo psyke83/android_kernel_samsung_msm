@@ -50,6 +50,7 @@ static inline void notify_other_proc_comm(void)
 #define MDM_DATA2   0x1C
 
 static DEFINE_SPINLOCK(proc_comm_lock);
+static int msm_proc_comm_disable;
 
 /* Poll for a state change, checking for possible
  * modem crashes along the way (so we don't wait
@@ -89,6 +90,9 @@ again:
 
 	spin_unlock_irqrestore(&proc_comm_lock, flags);
 
+	/* Make sure the writes complete before notifying the other side */
+	dsb();
+
 	notify_other_proc_comm();
 
 	return;
@@ -103,6 +107,12 @@ int msm_proc_comm(unsigned cmd, unsigned *data1, unsigned *data2)
 
 	spin_lock_irqsave(&proc_comm_lock, flags);
 
+	if (msm_proc_comm_disable) {
+		ret = -EIO;
+		goto end;
+	}
+
+
 again:
 	if (proc_comm_wait_for(base + MDM_STATUS, PCOM_READY))
 		goto again;
@@ -110,6 +120,9 @@ again:
 	writel(cmd, base + APP_COMMAND);
 	writel(data1 ? *data1 : 0, base + APP_DATA1);
 	writel(data2 ? *data2 : 0, base + APP_DATA2);
+
+	/* Make sure the writes complete before notifying the other side */
+	dsb();
 
 	notify_other_proc_comm();
 
@@ -127,6 +140,18 @@ again:
 	}
 
 	writel(PCOM_CMD_IDLE, base + APP_COMMAND);
+
+	switch (cmd) {
+	case PCOM_RESET_CHIP:
+	case PCOM_RESET_CHIP_IMM:
+	case PCOM_RESET_APPS:
+		msm_proc_comm_disable = 1;
+		printk(KERN_ERR "msm: proc_comm: proc comm disabled\n");
+		break;
+	}
+end:
+	/* Make sure the writes complete before returning */
+	dsb();
 
 	spin_unlock_irqrestore(&proc_comm_lock, flags);
 	return ret;

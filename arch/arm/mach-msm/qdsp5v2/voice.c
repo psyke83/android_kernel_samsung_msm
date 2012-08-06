@@ -118,6 +118,10 @@ static void voice_auddev_cb_function(u32 evt_id,
 				MM_DBG("dev_state into ready\n");
 				wake_up(&v->dev_wait);
 			}
+			if (v->voc_state == VOICE_CHANGE) {
+				MM_DBG("voc_state is in VOICE_CHANGE\n");
+				v->voc_state = VOICE_ACQUIRE;
+			}
 		}
 		break;
 	case AUDDEV_EVT_DEV_CHG_VOICE:
@@ -590,13 +594,14 @@ static int voice_thread(void *data)
 				atomic_dec(&v->acq_start_flag);
 			break;
 		case VOICE_RELEASE_START:
+			MM_DBG("broadcast voice call end\n");
+			broadcast_event(AUDDEV_EVT_VOICE_STATE_CHG,
+					VOICE_STATE_OFFCALL, SESSION_IGNORE);
 			if ((v->dev_state == DEV_REL_DONE) ||
 					(v->dev_state == DEV_INIT)) {
 				v->voc_state = VOICE_RELEASE;
 				msm_snddev_withdraw_freq(0, SNDDEV_CAP_TX,
 					AUDDEV_CLNT_VOC);
-				broadcast_event(AUDDEV_EVT_VOICE_STATE_CHG,
-					VOICE_STATE_OFFCALL, SESSION_IGNORE);
 			} else {
 				/* wait for the dev_state = RELEASE */
 				rc = wait_event_interruptible(v->dev_wait,
@@ -607,8 +612,6 @@ static int voice_thread(void *data)
 				v->voc_state = VOICE_RELEASE;
 				msm_snddev_withdraw_freq(0, SNDDEV_CAP_TX,
 					AUDDEV_CLNT_VOC);
-				broadcast_event(AUDDEV_EVT_VOICE_STATE_CHG,
-					VOICE_STATE_OFFCALL, SESSION_IGNORE);
 			}
 			if (atomic_read(&v->rel_start_flag))
 				atomic_dec(&v->rel_start_flag);
