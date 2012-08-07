@@ -1,0 +1,6 @@
+config RAMZSWAP_LEGACY
+	tristate "Compressed swap 0.6.2 legacy (ramzswap)"
+	depends on SWAP && CRYPTO_LZO && !ZRAM
+	default n
+	---help---
+	  This will build the compressed swap 0.6.2 (ramzswap) module
