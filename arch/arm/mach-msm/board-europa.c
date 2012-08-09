@@ -1968,6 +1968,9 @@ static struct platform_device *devices[] __initdata = {
 	&touch_i2c_gpio_device,
 	&fsa9280_i2c_gpio_device,
 	&smc91x_device,
+#ifdef CONFIG_TOUCHSCREEN_MSM_LEGACY
+	&msm_device_tssc,
+#endif
 	&android_pmem_kernel_ebi1_device,
 	&android_pmem_device,
 	&android_pmem_adsp_device,
