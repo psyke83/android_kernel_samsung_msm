@@ -722,7 +722,21 @@ msmsdcc_pio_irq(int irq, void *dev_id)
 
 		if (!(status & (MCI_TXFIFOHALFEMPTY | MCI_RXDATAAVLBL)))
 			break;
-
+		// [2010.05.05] fix null point exception by sg variable
+		if(host->pio.sg == NULL)
+		{
+			printk(KERN_ERR "[%s] work around. sg is null\n", __func__);
+			spin_unlock(&host->lock);	//ADD
+			return IRQ_HANDLED;
+		}
+		// [2010.6.29 : workaround for that if data is noting, but rxactive by bad sd card
+		if(!host->curr.data && (status & MCI_RXACTIVE))
+		{
+			writel(0, base + MMCIMASK1);
+			spin_unlock(&host->lock);
+			return IRQ_HANDLED;
+		}
+		// ]				
 		/* Map the current scatter buffer */
 		local_irq_save(flags);
 		buffer = kmap_atomic(sg_page(host->pio.sg),
