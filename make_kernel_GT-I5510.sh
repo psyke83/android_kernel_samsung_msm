@@ -1,0 +1,2 @@
+make callisto_rev03_purenand_defconfig
+make
