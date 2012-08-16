@@ -21,6 +21,7 @@ config ARCH_MSM7X25
 config ARCH_MSM7X27
 	bool "MSM7x27"
 	select ARCH_MSM_ARM11
+	select ARCH_HAS_BARRIERS if MSM_SOC_REV_NONE
 	select MSM_VIC
 	select CPU_V6
 	select MSM_REMOTE_SPINLOCK_SWP
@@ -138,6 +139,81 @@ config MACH_MSM7201A_FFA
 	help
 	  Support for the Qualcomm MSM7201A FFA eval board.
 
+config MACH_EUROPA
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	default n
+	bool "Europa"
+	help
+	  Support for the Samsung Europa board.
+
+config MACH_CALLISTO
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	default n
+	bool "Callisto"
+	help
+	  Support for the Samsung Callisto board.
+
+config MACH_COOPER
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	default n
+	bool "Cooper"
+	help
+	  Support for the Samsung Cooper board.
+
+config MACH_GIO
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	default n
+	bool "Gio"
+	help
+	  Support for the Samsung Gio board.
+
+config MACH_BENI
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	default n
+	bool "Beni"
+	help
+	  Support for the Samsung Beni board.
+
+config MACH_TASS
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	default n
+	bool "Tass"
+	help
+	  Support for the Samsung Tass board.
+
+config MACH_TASSDT
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	default n
+	bool "TassDT"
+	help
+	  Support for the Samsung TassDT board.
+
+config MACH_LUCAS
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	default n
+	bool "Lucas"
+	help
+	  Support for the Samsung Lucas board.	  	  
+	  
+config BOARD_REVISION
+	hex "Select H/W Revision"
+	depends on MACH_EUROPA || MACH_CALLISTO || MACH_COOPER || MACH_GIO || MACH_BENI || MACH_TASS || MACH_TASSDT || MACH_LUCAS
+	default "0x01"
+
+config 800MHZ
+	bool "use 800MHz mode"
+	default y
+	help
+	  Support for the only cooper & gio board.
+	  
 config MACH_TROUT
 	depends on ARCH_MSM7X01A
 	depends on MSM_STACKED_MEMORY
@@ -352,6 +428,10 @@ config MACH_MSM8X60_CHARM_FFA
 
 endmenu
 
+config MSM_ARM9_USES_UART3
+	bool "ARM9 uses uart3 as diag port"
+	default n
+
 config MSM_STACKED_MEMORY
 	bool "Stacked Memory"
 	default y
@@ -362,7 +442,14 @@ config MSM_STACKED_MEMORY
 
 config PHYS_OFFSET
 	hex
-	default "0x00200000" if !MSM_STACKED_MEMORY
+	default "0x13600000" if !MSM_STACKED_MEMORY && MACH_CALLISTO
+	default "0x13600000" if !MSM_STACKED_MEMORY && MACH_COOPER
+	default "0x13600000" if !MSM_STACKED_MEMORY && MACH_GIO	
+	default "0x13600000" if !MSM_STACKED_MEMORY && MACH_BENI
+	default "0x13600000" if !MSM_STACKED_MEMORY && MACH_TASS	
+	default "0x13600000" if !MSM_STACKED_MEMORY && MACH_TASSDT	
+	default "0x13600000" if !MSM_STACKED_MEMORY && MACH_LUCAS	
+	default "0x00200000" if !MSM_STACKED_MEMORY && MACH_EUROPA
 	default "0x00000000" if ARCH_QSD8X50 && MSM_SOC_REV_A
 	default "0x20000000" if ARCH_QSD8X50
 	default "0x40200000" if ARCH_MSM8X60
@@ -577,6 +664,12 @@ config HTC_HEADSET
 	 Provides support for detecting HTC 2 wire devices, such as wired
 	 headset, on the trout platform. Can be used with the msm serial
 	 debugger, but not with serial console.
+
+config SEC_HEADSET
+	tristate "SEC 2 Wire detection driver"
+	depends on ARCH_MSM7X27
+	default y
+
 
 config TROUT_BATTCHG
 	depends on MACH_TROUT && POWER_SUPPLY
@@ -1137,6 +1230,21 @@ choice
 		bool "Reset the entire chip"
 endchoice
 
+choice
+	prompt "TARGET LOCALE"
+	default TARGET_LOCALE_EUR_OPEN
+
+	config TARGET_LOCALE_EUR_OPEN
+		bool "EUR OPEN"
+		help
+		  Support EUR OPEN Board
+
+	config TARGET_LOCALE_AUS_TEL
+		bool "USA ATT"
+		help
+		  Support AUS Telstra Board
+endchoice
+
 config MSM_IDLE_WAIT_ON_MODEM
 	int "Wait for Modem to become ready for idle power collapse"
 	default 0
@@ -1287,3 +1395,27 @@ config BT_MSM_PINTEST
 	  This driver provides support for verifying the MSM to BT pin
 	  connectivity.
 endif
+# [ Israel_NetQ 2011.06.30  For Israel B model
+config SAMSUNG_LTN_COMMON
+	bool "select Latin common"
+
+config SAMSUNG_TASS_LTN_L
+	bool "select Latin TASS L"
+	
+config SAMSUNG_TASS_LTN_B
+	bool "select Latin TASS B"
+
+config SAMSUNG_BENI_LTN_L
+	bool "select Latin BEIN L"
+	
+config SAMSUNG_BENI_LTN_B
+	bool "select Latin BENI B"
+
+config SAMSUNG_COOPER_LTN_L
+	bool "select Latin COOPER L"
+config SAMSUNG_COOPER_LTN_B
+	bool "select Latin COOPER L"
+# Israel_NetQ 2011.06.30  For Israel B model]
+
+config MACH_TASS_THAILAND_B
+	bool "select Tass Thailand"

@@ -47,6 +47,9 @@ static int rpc_clients_cb_thread(void *data)
 	struct msm_rpc_client_cb_item *cb_item;
 	struct msm_rpc_client *client;
 	struct rpc_request_hdr req;
+#if 1	// sec_rpc_kws_20110819	case_00585749	don't use RPC after rpc cleared.
+	int ret;
+#endif
 
 	client = data;
 	for (;;) {
@@ -65,7 +68,13 @@ static int rpc_clients_cb_thread(void *data)
 			mutex_unlock(&client->cb_item_list_lock);
 			xdr_init_input(&client->cb_xdr, cb_item->buf,
 				       cb_item->size);
+#if 1	// sec_rpc_kws_20110819	case_00585749	don't use RPC after rpc cleared.
+			ret = xdr_recv_req(&client->cb_xdr, &req);
+			if (ret)
+				goto bad_rpc;
+#else
 			xdr_recv_req(&client->cb_xdr, &req);
+#endif
 
 			if (req.type != 0)
 				goto bad_rpc;
@@ -108,6 +117,14 @@ static int rpc_clients_thread(void *data)
 			kfree(buffer);
 			break;
 		}
+
+#if 1	// sec_rpc_kws_20110819	case_00585749	don't use RPC after rpc cleared.
+		if (rc < 0) {
+			wake_up(&client->reply_wait);
+			kfree(buffer);
+			continue;
+		}
+#endif
 
 		if (rc < ((int)(sizeof(uint32_t) * 2))) {
 			kfree(buffer);

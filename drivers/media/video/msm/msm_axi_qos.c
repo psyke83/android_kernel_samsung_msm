@@ -36,7 +36,7 @@ int add_axi_qos(void)
 int update_axi_qos(uint32_t rate)
 {
 	if (!ebi1_clk)
-		return 0;
+	return 0;
 
 	return clk_set_rate(ebi1_clk, rate * 1000);
 }
@@ -48,4 +48,5 @@ void release_axi_qos(void)
 
 	clk_disable(ebi1_clk);
 	clk_put(ebi1_clk);
+	ebi1_clk = NULL;
 }

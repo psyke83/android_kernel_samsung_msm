@@ -641,6 +641,7 @@ static ssize_t audio_write(struct file *file, const char __user *buf,
 	int old_policy = current->policy;
 	int cap_nice = cap_raised(current_cap(), CAP_SYS_NICE);
 	int rc = 0;
+	int test_count = count;
 
 	LOG(EV_WRITE, count | (audio->running << 28) | (audio->stopped << 24));
 
@@ -654,6 +655,7 @@ static ssize_t audio_write(struct file *file, const char __user *buf,
 	}
 
 	mutex_lock(&audio->write_lock);
+	//MM_ERR("audio_write : count - %d\n", count);
 	while (count > 0) {
 		frame = audio->out + audio->out_head;
 
@@ -689,6 +691,8 @@ static ssize_t audio_write(struct file *file, const char __user *buf,
 		spin_unlock_irqrestore(&audio->dsp_lock, flags);
 	}
 
+	if(count > 0)
+		MM_ERR("ERROR: request count = %d, written : %d\n", test_count, count);
 	mutex_unlock(&audio->write_lock);
 
 	/* restore scheduling policy and priority */

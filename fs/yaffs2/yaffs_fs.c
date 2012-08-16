@@ -271,6 +271,8 @@ static void *yaffs_follow_link(struct dentry *dentry, struct nameidata *nd);
 static int yaffs_follow_link(struct dentry *dentry, struct nameidata *nd);
 #endif
 
+static void yaffs_MarkSuperBlockDirty(void *vsb);
+
 static struct address_space_operations yaffs_file_address_operations = {
 	.readpage = yaffs_readpage,
 	.writepage = yaffs_writepage,
@@ -790,6 +792,7 @@ static int yaffs_writepage(struct page *page, struct writeback_control *wbc)
 static int yaffs_writepage(struct page *page)
 #endif
 {
+	yaffs_Device *dev;
 	struct address_space *mapping = page->mapping;
 	loff_t offset = (loff_t) page->index << PAGE_CACHE_SHIFT;
 	struct inode *inode;
@@ -829,7 +832,8 @@ static int yaffs_writepage(struct page *page)
 	buffer = kmap(page);
 
 	obj = yaffs_InodeToObject(inode);
-	yaffs_GrossLock(obj->myDev);
+	dev = obj->myDev;
+	yaffs_GrossLock(dev);
 
 	T(YAFFS_TRACE_OS,
 		("yaffs_writepage at %08x, size %08x\n",
@@ -841,11 +845,13 @@ static int yaffs_writepage(struct page *page)
 	nWritten = yaffs_WriteDataToFile(obj, buffer,
 			page->index << PAGE_CACHE_SHIFT, nBytes, 0);
 
+	yaffs_MarkSuperBlockDirty(dev->superBlock);
+
 	T(YAFFS_TRACE_OS,
 		("writepag1: obj = %05x, ino = %05x\n",
 		(int)obj->variant.fileVariant.fileSize, (int)inode->i_size));
 
-	yaffs_GrossUnlock(obj->myDev);
+	yaffs_GrossUnlock(dev);
 
 	kunmap(page);
 	SetPageUptodate(page);
@@ -1181,6 +1187,8 @@ static ssize_t yaffs_file_write(struct file *f, const char *buf, size_t n,
 
 	nWritten = yaffs_WriteDataToFile(obj, buf, ipos, n, 0);
 
+	yaffs_MarkSuperBlockDirty(dev->superBlock);
+
 	T(YAFFS_TRACE_OS,
 		("yaffs_file_write writing %zu bytes, %d written at %d\n",
 		n, nWritten, ipos));
@@ -1266,7 +1274,7 @@ static int yaffs_readdir(struct file *f, void *dirent, filldir_t filldir)
         sc = yaffs_NewSearch(obj);
         if(!sc){
                 retVal = -ENOMEM;
-                goto unlock_out;
+                goto out;
         }
 
 	T(YAFFS_TRACE_OS, ("yaffs_readdir: starting at %d\n", (int)offset));
@@ -1276,8 +1284,10 @@ static int yaffs_readdir(struct file *f, void *dirent, filldir_t filldir)
 			("yaffs_readdir: entry . ino %d \n",
 			(int)inode->i_ino));
 		yaffs_GrossUnlock(dev);
-		if (filldir(dirent, ".", 1, offset, inode->i_ino, DT_DIR) < 0)
+		if (filldir(dirent, ".", 1, offset, inode->i_ino, DT_DIR) < 0){
+			yaffs_GrossLock(dev);
 			goto out;
+        }
 		yaffs_GrossLock(dev);
 		offset++;
 		f->f_pos++;
@@ -1288,8 +1298,10 @@ static int yaffs_readdir(struct file *f, void *dirent, filldir_t filldir)
 			(int)f->f_dentry->d_parent->d_inode->i_ino));
 		yaffs_GrossUnlock(dev);
 		if (filldir(dirent, "..", 2, offset,
-			f->f_dentry->d_parent->d_inode->i_ino, DT_DIR) < 0)
+			f->f_dentry->d_parent->d_inode->i_ino, DT_DIR) < 0){
+			yaffs_GrossLock(dev);
 			goto out;
+        }
 		yaffs_GrossLock(dev);
 		offset++;
 		f->f_pos++;
@@ -1326,8 +1338,10 @@ static int yaffs_readdir(struct file *f, void *dirent, filldir_t filldir)
 					strlen(name),
 					offset,
 					this_inode,
-					this_type) < 0)
+					this_type) < 0){
+				yaffs_GrossLock(dev);
 				goto out;
+            }
 
                         yaffs_GrossLock(dev);
 
@@ -1337,10 +1351,9 @@ static int yaffs_readdir(struct file *f, void *dirent, filldir_t filldir)
                 yaffs_SearchAdvance(sc);
 	}
 
-unlock_out:
-	yaffs_GrossUnlock(dev);
 out:
         yaffs_EndSearch(sc);
+	yaffs_GrossUnlock(dev);
 
 	return retVal;
 }

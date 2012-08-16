@@ -29,7 +29,7 @@
 #include <linux/vmalloc.h>
 #include <linux/notifier.h>
 #include <linux/pm_runtime.h>
-#include <linux/dmapool.h>
+
 #include <asm/atomic.h>
 
 #include <linux/ashmem.h>
@@ -198,29 +198,6 @@ int kgsl_check_timestamp(struct kgsl_device *device, unsigned int timestamp)
 	return timestamp_cmp(ts_processed, timestamp);
 }
 
-int kgsl_regread(struct kgsl_device *device, unsigned int offsetwords,
-			unsigned int *value)
-{
-	int status = -ENXIO;
-
-	if (device->ftbl.device_regread)
-		status = device->ftbl.device_regread(device, offsetwords,
-					value);
-
-	return status;
-}
-
-int kgsl_regwrite(struct kgsl_device *device, unsigned int offsetwords,
-			unsigned int value)
-{
-	int status = -ENXIO;
-	if (device->ftbl.device_regwrite)
-		status = device->ftbl.device_regwrite(device, offsetwords,
-					value);
-
-	return status;
-}
-
 int kgsl_setstate(struct kgsl_device *device, uint32_t flags)
 {
 	int status = -ENXIO;
@@ -377,7 +354,7 @@ kgsl_get_process_private(struct kgsl_device_private *cur_dev_priv)
 
 	mutex_lock(&kgsl_driver.process_mutex);
 	list_for_each_entry(private, &kgsl_driver.process_list, list) {
-		if (private->pid == task_pid_nr(current)) {
+		if (private->pid == task_tgid_nr(current)) {
 			private->refcnt++;
 			goto out;
 		}
@@ -392,7 +369,7 @@ kgsl_get_process_private(struct kgsl_device_private *cur_dev_priv)
 
 	spin_lock_init(&private->mem_lock);
 	private->refcnt = 1;
-	private->pid = task_pid_nr(current);
+	private->pid = task_tgid_nr(current);
 
 	INIT_LIST_HEAD(&private->mem_list);
 
@@ -402,7 +379,7 @@ kgsl_get_process_private(struct kgsl_device_private *cur_dev_priv)
 		unsigned long pt_name;
 
 #ifdef CONFIG_KGSL_PER_PROCESS_PAGE_TABLE
-		pt_name = task_pid_nr(current);
+		pt_name = task_tgid_nr(current);
 #else
 		pt_name = KGSL_MMU_GLOBAL_PT;
 #endif
@@ -437,12 +414,10 @@ kgsl_put_process_private(struct kgsl_device *device,
 
 	list_del(&private->list);
 
-	spin_lock(&private->mem_lock);
 	list_for_each_entry_safe(entry, entry_tmp, &private->mem_list, list) {
 		list_del(&entry->list);
 		kgsl_destroy_mem_entry(entry);
 	}
-	spin_unlock(&private->mem_lock);
 
 #ifdef CONFIG_MSM_KGSL_MMU
 	if (private->pagetable != NULL)
@@ -724,9 +699,14 @@ static long kgsl_ioctl_device_regread(struct kgsl_device_private *dev_priv,
 		result = -EFAULT;
 		goto done;
 	}
-	result = dev_priv->device->ftbl.device_regread(dev_priv->device,
-						param.offsetwords,
-						&param.value);
+
+	if (param.offsetwords*sizeof(uint32_t) >=
+	    dev_priv->device->regspace.sizebytes) {
+		KGSL_DRV_ERR("invalid offset %d\n", param.offsetwords);
+		return -ERANGE;
+	}
+
+	kgsl_regread(dev_priv->device, param.offsetwords, &param.value);
 
 	if (result != 0)
 		goto done;
@@ -1880,6 +1860,69 @@ error_class_create:
 	return err;
 }
 
+static void
+kgsl_ptpool_cleanup(void)
+{
+	int size = kgsl_driver.ptpool.entries * kgsl_driver.ptsize;
+
+	if (kgsl_driver.ptpool.hostptr)
+		dma_free_coherent(NULL, size, kgsl_driver.ptpool.hostptr,
+				  kgsl_driver.ptpool.physaddr);
+
+
+	kfree(kgsl_driver.ptpool.bitmap);
+
+	memset(&kgsl_driver.ptpool, 0, sizeof(kgsl_driver.ptpool));
+}
+
+/* Allocate memory and structures for the pagetable pool */
+
+static int __devinit
+kgsl_ptpool_init(void)
+{
+	int size = kgsl_driver.ptpool.entries * kgsl_driver.ptsize;
+
+	if (size > SZ_4M) {
+		size = SZ_4M;
+		kgsl_driver.ptpool.entries = SZ_4M / kgsl_driver.ptsize;
+		KGSL_DRV_ERR("Page table pool too big.  Limiting to "
+			"%d processes\n", kgsl_driver.ptpool.entries);
+	}
+
+	/* Allocate a large chunk of memory for the page tables */
+
+	kgsl_driver.ptpool.hostptr =
+		dma_alloc_coherent(NULL, size, &kgsl_driver.ptpool.physaddr,
+				   GFP_KERNEL);
+
+	if (kgsl_driver.ptpool.hostptr == NULL) {
+		KGSL_DRV_ERR("pagetable init failed\n");
+		return -ENOMEM;
+	}
+
+	/* Allocate room for the bitmap */
+
+	kgsl_driver.ptpool.bitmap =
+		kzalloc((kgsl_driver.ptpool.entries / BITS_PER_BYTE) + 1,
+			GFP_KERNEL);
+
+	if (kgsl_driver.ptpool.bitmap == NULL) {
+		KGSL_DRV_ERR("pagetable init failed\n");
+		dma_free_coherent(NULL, size, kgsl_driver.ptpool.hostptr,
+				  kgsl_driver.ptpool.physaddr);
+		return -ENOMEM;
+	}
+
+	/* Clear the memory at init time - this saves us having to do
+	   it as page tables are allocated */
+
+	memset(kgsl_driver.ptpool.hostptr, 0, size);
+
+	spin_lock_init(&kgsl_driver.ptpool.lock);
+
+	return 0;
+}
+
 static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 {
 	int i, result = 0;
@@ -1930,10 +1973,12 @@ static int __devinit kgsl_platform_probe(struct platform_device *pdev)
 	kgsl_driver.ptsize = ALIGN(kgsl_driver.ptsize, KGSL_PAGESIZE);
 
 	kgsl_driver.pt_va_size = pdata->pt_va_size;
+	kgsl_driver.ptpool.entries = pdata->pt_max_count;
 
-	kgsl_driver.ptpool = dma_pool_create("kgsl-ptpool", NULL,
-					     kgsl_driver.ptsize,
-					     4096, 0);
+	result = kgsl_ptpool_init();
+
+	if (result != 0)
+		goto done;
 
 	result = kgsl_drm_init(pdev);
 
@@ -2002,6 +2047,7 @@ static int kgsl_platform_remove(struct platform_device *pdev)
 {
 	pm_runtime_disable(&pdev->dev);
 
+	kgsl_ptpool_cleanup();
 	kgsl_driver_cleanup();
 	kgsl_drm_exit();
 	kgsl_device_unregister();

@@ -1,3 +1,7 @@
+#if defined(CONFIG_MACH_GIO)
+#include "msm_camera_gio.c"
+#else
+
 /* Copyright (c) 2009-2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -39,6 +43,24 @@
 #include <mach/camera.h>
 #include <linux/syscalls.h>
 #include <linux/hrtimer.h>
+
+#if defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
+#include "s5k5caff_rough.h"
+#elif defined(CONFIG_MACH_COOPER)
+void sensor_ext_config(void __user *arg);
+#elif defined(CONFIG_MACH_GIO)
+void sensor_rough_control(void __user *arg);
+#elif defined(CONFIG_MACH_BENI)
+#include "s5k4ecgx_rough.h"
+#elif defined(CONFIG_MACH_LUCAS)
+#include "s5k5ccaf_rough.h"
+#elif defined(CONFIG_MACH_CALLISTO)
+#include "s5k5ca_rough.h"
+#endif
+
+#define	pr_info	printk
+#define CAMERA_STOP_SNAPSHOT 42
+
 DEFINE_MUTEX(ctrl_cmd_lock);
 
 spinlock_t pp_prev_spinlock;
@@ -811,7 +833,7 @@ static struct msm_queue_cmd *__msm_control(struct msm_sync *sync,
 			queue->wait,
 			!list_empty_careful(&queue->list),
 			timeout);
-	CDBG("Waiting over for config status\n");
+	CDBG("Waiting over for config status \n");
 	if (list_empty_careful(&queue->list)) {
 		if (!rc) {
 			rc = -ETIMEDOUT;
@@ -898,6 +920,10 @@ static int msm_control(struct msm_control_device *ctrl_pmsm,
 
 	uptr = udata->value;
 	udata->value = data;
+
+#if defined (CONFIG_MACH_COOPER) || defined (CONFIG_MACH_GIO)
+	if (udata->type == CAMERA_STOP_SNAPSHOT)sync->get_pic_abort = 1;
+#endif
 	qcmd->type = MSM_CAM_Q_CTRL;
 	qcmd->command = udata;
 
@@ -1240,7 +1266,7 @@ static int msm_ctrl_cmd_done(struct msm_control_device *ctrl_pmsm,
 		ctrl_pmsm->pmsm->sync->ignore_qcmd = false;
 		ctrl_pmsm->pmsm->sync->ignore_qcmd_type = -1;
 	} else /* wake up control thread */
-		msm_enqueue(&ctrl_pmsm->ctrl_q, &qcmd->list_control);
+	msm_enqueue(&ctrl_pmsm->ctrl_q, &qcmd->list_control);
 	return 0;
 }
 
@@ -2395,6 +2421,17 @@ static long msm_ioctl_control(struct file *filep, unsigned int cmd,
 	case MSM_CAM_IOCTL_GET_CAMERA_INFO:
 		rc = msm_get_camera_info(argp);
 		break;
+#if defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_BENI) || defined (CONFIG_MACH_GIO) || defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_CALLISTO)
+    case MSM_CAM_IOCTL_PCAM_CTRL_8BIT:
+        sensor_rough_control(argp);
+        rc = 0;
+        break;
+#elif defined(CONFIG_MACH_COOPER) 
+    case MSM_CAM_IOCTL_PCAM_CTRL_8BIT:
+        sensor_ext_config(argp);
+        rc = 0;
+        break;
+#endif
 	default:
 		rc = msm_ioctl_common(pmsm, cmd, argp);
 		break;
@@ -3334,3 +3371,8 @@ int msm_camera_drv_start(struct platform_device *dev,
 	return rc;
 }
 EXPORT_SYMBOL(msm_camera_drv_start);
+
+
+
+#endif
+

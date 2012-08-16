@@ -450,6 +450,13 @@ config TSIF_DEBUG
 	---help---
 	  This turns on debugging information for the tsif driver
 
+config SAMSUNG_JACK
+	bool "3.5 PI EAR_JACK driver for Samsung devices"
+	depends on INPUT
+	default n
+	---help---
+	  This is 3.5 PI EAR_JACK driver for Samsung devices.	  
+
 config HAPTIC_ISA1200
 	tristate "ISA1200 haptic support"
 	depends on I2C

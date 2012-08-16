@@ -49,6 +49,7 @@
 #define HS_END_K		0x51	/* End key or Power key */
 #define HS_STEREO_HEADSET_K	0x82
 #define HS_HEADSET_SWITCH_K	0x84
+#define HS_HEADSET_SWITCH_K_OFF	0x85
 #define HS_HEADSET_SWITCH_2_K	0xF0
 #define HS_HEADSET_SWITCH_3_K	0xF1
 #define HS_HEADSET_HEADPHONE_K	0xF6
@@ -190,6 +191,7 @@ static const uint32_t hs_key_map[] = {
 	KEY(HS_HEADSET_HEADPHONE_K, SW_HEADPHONE_INSERT),
 	KEY(HS_HEADSET_MICROPHONE_K, SW_MICROPHONE_INSERT),
 	KEY(HS_HEADSET_SWITCH_K, KEY_MEDIA),
+	KEY(HS_HEADSET_SWITCH_K_OFF, KEY_MEDIA),
 	KEY(HS_HEADSET_SWITCH_2_K, KEY_VOLUMEUP),
 	KEY(HS_HEADSET_SWITCH_3_K, KEY_VOLUMEDOWN),
 	0
@@ -232,6 +234,7 @@ static int hs_find_key(uint32_t hscode)
 
 	key = KEY(hscode, 0);
 
+	printk("[RPC] %s %d \n[RPC] key = %08x\n",__func__, __LINE__, key);
 	for (i = 0; hs_key_map[i] != 0; i++) {
 		if ((hs_key_map[i] & 0xff000000) == key)
 			return hs_key_map[i] & 0x00ffffff;
@@ -287,6 +290,7 @@ static void report_hs_key(uint32_t key_code, uint32_t key_parm)
 	case KEY_VOLUMEUP:
 	case KEY_VOLUMEDOWN:
 		input_report_key(hs->ipdev, key, (key_code != HS_REL_K));
+		printk("[RPC] %s %d \n[RPC] input_report_key(%d, %d)\n",__func__, __LINE__, key, key_code != HS_REL_K);
 		break;
 	case SW_HEADPHONE_INSERT_W_MIC:
 		hs->mic_on = hs->hs_on = (key_code != HS_REL_K) ? 1 : 0;
@@ -295,21 +299,24 @@ static void report_hs_key(uint32_t key_code, uint32_t key_parm)
 		input_report_switch(hs->ipdev, SW_MICROPHONE_INSERT,
 							hs->mic_on);
 		update_state();
+		printk("[RPC] %s %d \n[RPC] input_report_key(%d, %d)\n",__func__, __LINE__, key, key_code != HS_REL_K);
 		break;
 
 	case SW_HEADPHONE_INSERT:
 		hs->hs_on = (key_code != HS_REL_K) ? 1 : 0;
 		input_report_switch(hs->ipdev, key, hs->hs_on);
 		update_state();
+		printk("[RPC] %s %d \n[RPC] input_report_key(%d, %d)\n",__func__, __LINE__, key, key_code != HS_REL_K);
 		break;
 	case SW_MICROPHONE_INSERT:
 		hs->mic_on = (key_code != HS_REL_K) ? 1 : 0;
 		input_report_switch(hs->ipdev, key, hs->mic_on);
 		update_state();
+		printk("[RPC] %s %d \n[RPC] input_report_key(%d, %d)\n",__func__, __LINE__, key, key_code != HS_REL_K);
 		break;
 	case -1:
-		printk(KERN_ERR "%s: No mapping for remote handset event %d\n",
-				 __func__, temp_key_code);
+		printk(KERN_ERR "%s: No mapping for remote handset event %d key=%d\n",
+				 __func__, temp_key_code, key);
 		return;
 	}
 	input_sync(hs->ipdev);
@@ -609,7 +616,7 @@ static int __devinit hs_probe(struct platform_device *pdev)
 	if (!hs)
 		return -ENOMEM;
 
-	hs->sdev.name	= "h2w";
+	hs->sdev.name	= "sec_earbutton";
 	hs->sdev.print_name = msm_headset_print_name;
 
 	rc = switch_dev_register(&hs->sdev);
@@ -627,11 +634,13 @@ static int __devinit hs_probe(struct platform_device *pdev)
 
 	if (pdev->dev.platform_data)
 		hs->hs_pdata = pdev->dev.platform_data;
-
+#if 0
 	if (hs->hs_pdata->hs_name)
 		ipdev->name = hs->hs_pdata->hs_name;
 	else
 		ipdev->name	= DRIVER_NAME;
+#endif
+        ipdev->name = "sec_jack";
 
 	ipdev->id.vendor	= 0x0001;
 	ipdev->id.product	= 1;

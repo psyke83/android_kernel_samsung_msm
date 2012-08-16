@@ -30,10 +30,16 @@ enum {
 static int debug_mask = DEBUG_USER_STATE;
 module_param_named(debug_mask, debug_mask, int, S_IRUGO | S_IWUSR | S_IWGRP);
 
+// hsil
+extern struct wake_lock sync_wake_lock;
+extern struct workqueue_struct *sync_work_queue;
+
 static DEFINE_MUTEX(early_suspend_lock);
 static LIST_HEAD(early_suspend_handlers);
+static void sync_system(struct work_struct *work);
 static void early_suspend(struct work_struct *work);
 static void late_resume(struct work_struct *work);
+static DECLARE_WORK(sync_system_work, sync_system);
 static DECLARE_WORK(early_suspend_work, early_suspend);
 static DECLARE_WORK(late_resume_work, late_resume);
 static DEFINE_SPINLOCK(state_lock);
@@ -43,6 +49,13 @@ enum {
 	SUSPEND_REQUESTED_AND_SUSPENDED = SUSPEND_REQUESTED | SUSPENDED,
 };
 static int state;
+
+static void sync_system(struct work_struct *work)
+{
+	wake_lock(&sync_wake_lock);
+	sys_sync();
+	wake_unlock(&sync_wake_lock);
+}
 
 void register_early_suspend(struct early_suspend *handler)
 {
@@ -102,7 +115,9 @@ static void early_suspend(struct work_struct *work)
 	if (debug_mask & DEBUG_SUSPEND)
 		pr_info("early_suspend: sync\n");
 
-	sys_sync();
+	// hsil
+//	sys_sync();
+	queue_work(sync_work_queue, &sync_system_work);
 abort:
 	spin_lock_irqsave(&state_lock, irqflags);
 	if (state == SUSPEND_REQUESTED_AND_SUSPENDED)
@@ -167,6 +182,7 @@ void request_suspend_state(suspend_state_t new_state)
 		state &= ~SUSPEND_REQUESTED;
 		wake_lock(&main_wake_lock);
 		queue_work(suspend_work_queue, &late_resume_work);
+		
 	}
 	requested_suspend_state = new_state;
 	spin_unlock_irqrestore(&state_lock, irqflags);

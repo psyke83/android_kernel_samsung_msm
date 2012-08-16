@@ -221,6 +221,12 @@ static struct rpcrouter_xprt_info *rpcrouter_get_xprt_info(uint32_t remote_pid)
 {
 	struct rpcrouter_xprt_info *xprt_info;
 
+#if 1	// sec_rpc_kws_20110819	case_00585749	don't use RPC after rpc cleared.
+	list_for_each_entry(xprt_info, &xprt_info_list, list) {
+		if (xprt_info->remote_pid == remote_pid)
+			return xprt_info;
+		}
+#else
 	mutex_lock(&xprt_info_list_lock);
 	list_for_each_entry(xprt_info, &xprt_info_list, list) {
 		if (xprt_info->remote_pid == remote_pid) {
@@ -229,6 +235,7 @@ static struct rpcrouter_xprt_info *rpcrouter_get_xprt_info(uint32_t remote_pid)
 		}
 	}
 	mutex_unlock(&xprt_info_list_lock);
+#endif
 	return NULL;
 }
 
@@ -1260,9 +1267,22 @@ static int msm_rpc_write_pkt(
 	if (r_ept)
 		spin_unlock_irqrestore(&r_ept->quota_lock, flags);
 
+#if 1	// sec_rpc_kws_20110819	case_00585749	don't use RPC after rpc cleared.
+	mutex_lock(&xprt_info_list_lock);
+	xprt_info = rpcrouter_get_xprt_info(hdr->dst_pid);
+
+	if (!xprt_info) {
+		mutex_unlock(&xprt_info_list_lock);
+			return -ENETRESET;
+	}
+	spin_lock_irqsave(&xprt_info->lock, flags);
+	
+	mutex_unlock(&xprt_info_list_lock);
+#else
 	xprt_info = rpcrouter_get_xprt_info(hdr->dst_pid);
 
 	spin_lock_irqsave(&xprt_info->lock, flags);
+#endif
 	spin_lock(&ept->restart_lock);
 	if (ept->restart_state != RESTART_NORMAL) {
 		ept->restart_state &= ~RESTART_PEND_NTFY;
@@ -1277,7 +1297,20 @@ static int msm_rpc_write_pkt(
 		spin_unlock(&ept->restart_lock);
 		spin_unlock_irqrestore(&xprt_info->lock, flags);
 		msleep(250);
+
+#if 1	// sec_rpc_kws_20110819	case_00585749	don't use RPC after rpc cleared.
+		mutex_lock(&xprt_info_list_lock);
+			xprt_info = rpcrouter_get_xprt_info(hdr->dst_pid);
+				if (!xprt_info) {
+					mutex_unlock(&xprt_info_list_lock);
+						return -ENETRESET;
+				}
+		
 		spin_lock_irqsave(&xprt_info->lock, flags);
+		mutex_unlock(&xprt_info_list_lock);
+#else
+		spin_lock_irqsave(&xprt_info->lock, flags);
+#endif
 		spin_lock(&ept->restart_lock);
 	}
 	if (ept->restart_state != RESTART_NORMAL) {
@@ -2292,7 +2325,11 @@ static int __init rpcrouter_init(void)
 	int ret;
 
 	msm_rpc_connect_timeout_ms = 0;
+#if 1	// sec_rpc_kws_20110819	case_00585749	don't use RPC after rpc cleared.
+	smd_rpcrouter_debug_mask |= (SMEM_LOG | R2R_MSG | RPC_MSG);
+#else
 	smd_rpcrouter_debug_mask |= SMEM_LOG;
+#endif
 	debugfs_init();
 
 	/* Initialize what we need to start processing */

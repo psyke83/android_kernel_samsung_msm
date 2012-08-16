@@ -493,6 +493,9 @@ static void mdp_pipe_ctrl_workqueue_handler(struct work_struct *work)
 {
 	mdp_pipe_ctrl(MDP_MASTER_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 }
+
+extern int enter_suspend;	//hsil
+
 void mdp_pipe_ctrl(MDP_BLOCK_TYPE block, MDP_BLOCK_POWER_STATE state,
 		   boolean isr)
 {
@@ -518,6 +521,8 @@ void mdp_pipe_ctrl(MDP_BLOCK_TYPE block, MDP_BLOCK_POWER_STATE state,
 	} else {
 		atomic_dec(&mdp_block_power_cnt[block]);
 
+//		if (enter_suspend)
+//		printk("[HSIL] %s(%d)  atomic_read : %d\n", __func__, __LINE__, atomic_read(&mdp_block_power_cnt[block]));
 		if (atomic_read(&mdp_block_power_cnt[block]) < 0) {
 			/*
 			* Master has to serve a request to power off MDP always
@@ -546,11 +551,19 @@ void mdp_pipe_ctrl(MDP_BLOCK_TYPE block, MDP_BLOCK_POWER_STATE state,
 	if (isr) {
 		/* checking all blocks power state */
 		for (i = 0; i < MDP_MAX_BLOCK; i++) {
+//			if (enter_suspend)
+//			printk("[HSIL] %s(%d)  atomic_read : %d\n", __func__, __LINE__, atomic_read(&mdp_block_power_cnt[i]));
 			if (atomic_read(&mdp_block_power_cnt[i]) > 0)
+			{
+//				if (enter_suspend)
+//					printk("[HSIL] %s(%d) : the mdp block #%d is alive\n", __func__, __LINE__, i);
 				mdp_all_blocks_off = FALSE;
+		}
 		}
 
 		if ((mdp_all_blocks_off) && (mdp_current_clk_on)) {
+//			if (enter_suspend)
+//				printk("[HSIL] %s(%d) : mdp_all_blocks_off\n", __func__, __LINE__);
 			/* send workqueue to turn off mdp power */
 			queue_delayed_work(mdp_pipe_ctrl_wq,
 					   &mdp_pipe_ctrl_worker,
@@ -560,10 +573,28 @@ void mdp_pipe_ctrl(MDP_BLOCK_TYPE block, MDP_BLOCK_POWER_STATE state,
 		down(&mdp_pipe_ctrl_mutex);
 		/* checking all blocks power state */
 		for (i = 0; i < MDP_MAX_BLOCK; i++) {
+//			if (enter_suspend)
+//			printk("[HSIL] %s(%d)  atomic_read : %d\n", __func__, __LINE__, atomic_read(&mdp_block_power_cnt[i]));
 			if (atomic_read(&mdp_block_power_cnt[i]) > 0)
+			{
+//				if (enter_suspend)
+//					printk("[HSIL] %s(%d) : the mdp block #%d is alive\n", __func__, __LINE__, i);
 				mdp_all_blocks_off = FALSE;
 		}
-
+		}
+		/* When suspend mode, wait for turn-off mdp block */
+		// hsil
+		if( (mdp_all_blocks_off == FALSE) && (block == MDP_MASTER_BLOCK) && (state == MDP_BLOCK_POWER_OFF) && (isr == FALSE) )
+		{
+			printk("[HSIL] wait for MDP_DMA2_BLOCK off\n");
+			while (atomic_read(&mdp_block_power_cnt[MDP_DMA2_BLOCK]) > 0)
+			{
+				cpu_relax();
+				atomic_dec(&mdp_block_power_cnt[MDP_DMA2_BLOCK]);
+			}
+			printk("[HSIL] Now MDP_DMA2_BLOCK off\n");
+			mdp_all_blocks_off = TRUE;
+		}
 		/*
 		 * find out whether a delayable work item is currently
 		 * pending
@@ -582,6 +613,8 @@ void mdp_pipe_ctrl(MDP_BLOCK_TYPE block, MDP_BLOCK_POWER_STATE state,
 		}
 
 		if ((mdp_all_blocks_off) && (mdp_current_clk_on)) {
+//			if (enter_suspend)
+//				printk("[HSIL] %s(%d) : mdp_all_blocks_off\n", __func__, __LINE__);
 			if (block == MDP_MASTER_BLOCK) {
 				mdp_current_clk_on = FALSE;
 				if (footswitch != NULL)
@@ -1351,17 +1384,22 @@ static int mdp_probe(struct platform_device *pdev)
 static void mdp_suspend_sub(void)
 {
 	/* cancel pipe ctrl worker */
+	printk("[HSIL] %s(%d) will cancel_delayed_work\n", __func__, __LINE__);
 	cancel_delayed_work(&mdp_pipe_ctrl_worker);
 
 	/* for workder can't be cancelled... */
+	printk("[HSIL] %s(%d) will flush_workqueue\n", __func__, __LINE__);
 	flush_workqueue(mdp_pipe_ctrl_wq);
 
 	/* let's wait for PPP completion */
+	printk("[HSIL] %s(%d) will atomic_read\n", __func__, __LINE__);
 	while (atomic_read(&mdp_block_power_cnt[MDP_PPP_BLOCK]) > 0)
 		cpu_relax();
 
 	/* try to power down */
+	printk("[HSIL] %s(%d) will mdp_pipe_ctrl\n", __func__, __LINE__);
 	mdp_pipe_ctrl(MDP_MASTER_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	printk("[HSIL] %s(%d) after mdp_pipe_ctrl\n", __func__, __LINE__);
 }
 #endif
 

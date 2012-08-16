@@ -452,6 +452,9 @@ static int ep_scan_ready_list(struct eventpoll *ep,
 	struct epitem *epi, *nepi;
 	LIST_HEAD(txlist);
 
+		BUG_ON(!ep); 
+		BUG_ON(!sproc); 				
+	    
 	/*
 	 * We need to lock this because we could be hit by
 	 * eventpoll_release_file() and epoll_ctl().

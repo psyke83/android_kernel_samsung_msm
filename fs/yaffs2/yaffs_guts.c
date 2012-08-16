@@ -5167,7 +5167,7 @@ static int yaffs_UnlinkFileIfNeeded(yaffs_Object *in)
 int yaffs_DeleteFile(yaffs_Object *in)
 {
 	int retVal = YAFFS_OK;
-	int deleted = in->deleted;
+	int deleted; /* Need to cache value on stack if in is freed */
 
 	yaffs_ResizeFile(in, 0);
 
@@ -5177,6 +5177,8 @@ int yaffs_DeleteFile(yaffs_Object *in)
 		 */
 		if (!in->unlinked)
 			retVal = yaffs_UnlinkFileIfNeeded(in);
+
+		deleted = in->deleted;
 
 		if (retVal == YAFFS_OK && in->unlinked && !in->deleted) {
 			in->deleted = 1;
@@ -6337,6 +6339,17 @@ static int yaffs_ScanBackwards(yaffs_Device *dev)
 				  blk, c));
 
 				  dev->nFreeChunks++;
+
+			} else if (	tags.objectId > YAFFS_MAX_OBJECT_ID ||
+					tags.chunkId > YAFFS_MAX_CHUNK_ID ||
+                            		(tags.chunkId > 0 && tags.byteCount > dev->nDataBytesPerChunk) ||
+                            		tags.sequenceNumber != bi->sequenceNumber ) {
+				T(	YAFFS_TRACE_SCAN,
+					(TSTR("Chunk (%d:%d) with bad tags:obj = %d, chunkId = %d, byteCount = %d, ignored"TENDSTR),
+					blk, c,tags.objectId, tags.chunkId, tags.byteCount)
+				);
+
+				dev->nFreeChunks++;
 
 			} else if (tags.chunkId > 0) {
 				/* chunkId > 0 so it is a data chunk... */

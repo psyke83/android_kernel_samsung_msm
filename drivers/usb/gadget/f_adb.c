@@ -116,6 +116,25 @@ static struct usb_descriptor_header *hs_adb_descs[] = {
 	NULL,
 };
 
+/* string descriptors: */
+
+#define ADB_IDX	0
+
+/* static strings, in UTF-8 */
+static struct usb_string adb_string_defs[] = {
+	[ADB_IDX].s = "Samsung Android ADB",
+	{  /* ZEROES END LIST */ },
+};
+
+static struct usb_gadget_strings adb_string_table = {
+	.language =		0x0409,	/* en-us */
+	.strings =		adb_string_defs,
+};
+
+static struct usb_gadget_strings *adb_strings[] = {
+	&adb_string_table,
+	NULL,
+};
 
 /* temporary variable used between adb_open() and adb_gadget_bind() */
 static struct adb_dev *_adb_dev;
@@ -586,7 +605,7 @@ static void adb_function_disable(struct usb_function *f)
 static int adb_bind_config(struct usb_configuration *c)
 {
 	struct adb_dev *dev;
-	int ret;
+	int ret, status;
 
 	pr_debug("adb_bind_config\n");
 
@@ -605,8 +624,17 @@ static int adb_bind_config(struct usb_configuration *c)
 
 	INIT_LIST_HEAD(&dev->tx_idle);
 
+	/* maybe allocate device-global string IDs, and patch descriptors */
+
+	status = usb_string_id(c->cdev);
+	if (status < 0)
+		return status;
+	adb_string_defs[ADB_IDX].id = status;
+	adb_interface_desc.iInterface = status;
+
 	dev->cdev = c->cdev;
 	dev->function.name = "adb";
+	dev->function.strings = adb_strings;
 	dev->function.descriptors = fs_adb_descs;
 	dev->function.hs_descriptors = hs_adb_descs;
 	dev->function.bind = adb_function_bind;

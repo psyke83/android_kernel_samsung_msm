@@ -757,7 +757,7 @@ static struct binder_buffer *binder_alloc_buf(struct binder_proc *proc,
 	}
 	if (best_fit == NULL) {
 		printk(KERN_ERR "binder: %d: binder_alloc_buf size %zd failed, "
-		       "no address space\n", proc->pid, size);
+		       "no address space. buffer_size=%d\n", proc->pid, size, buffer_size);
 		return NULL;
 	}
 	if (n == NULL) {

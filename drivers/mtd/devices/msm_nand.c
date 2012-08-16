@@ -13,11 +13,9 @@
  *
  */
 
-#include <linux/slab.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mtd/mtd.h>
-#include <linux/mtd/nand.h>
 #include <linux/mtd/partitions.h>
 #include <linux/platform_device.h>
 #include <linux/sched.h>
@@ -25,6 +23,7 @@
 #include <linux/io.h>
 #include <linux/crc16.h>
 #include <linux/bitrev.h>
+#include <linux/slab.h>
 
 #include <asm/dma.h>
 #include <asm/mach/flash.h>
@@ -78,6 +77,10 @@ struct msm_nand_chip {
 	uint32_t ecc_buf_cfg;
 };
 
+struct mtd_info *current_mtd = NULL;
+unsigned param_start_block;
+unsigned param_end_block;
+
 #define CFG1_WIDE_FLASH (1U << 1)
 
 /* TODO: move datamover code out */
@@ -88,7 +91,7 @@ struct msm_nand_chip {
 #define DST_CRCI_NAND_DATA CMD_DST_CRCI(DMOV_NAND_CRCI_DATA)
 
 #define msm_virt_to_dma(chip, vaddr) \
-	((chip)->dma_addr + \
+	((void)(*(vaddr)), (chip)->dma_addr + \
 	 ((uint8_t *)(vaddr) - (chip)->dma_buffer))
 
 /**
@@ -385,12 +388,33 @@ uint32_t flash_read_id(struct msm_nand_chip *chip)
 
 struct flash_identification {
 	uint32_t flash_id;
+	uint32_t mask;
 	uint32_t density;
 	uint32_t widebus;
 	uint32_t pagesize;
 	uint32_t blksize;
 	uint32_t oobsize;
-} supported_flash;
+};
+
+static struct flash_identification supported_flash[] =
+{
+	/* Flash ID   ID Mask Density(MB)  Wid Pgsz   Blksz   oobsz    Manuf */
+	{0x00000000, 0xFFFFFFFF,         0, 0,    0,         0,  0, }, /*ONFI*/
+	{0x5590bc2c, 0xFFFFFFFF, (512<<20), 1, 2048, (2048<<6), 64, }, /*Micr*/
+	{0x1500aaec, 0xFF00FFFF, (256<<20), 0, 2048, (2048<<6), 64, }, /*Sams*/
+	{0x5500baec, 0xFF00FFFF, (256<<20), 1, 2048, (2048<<6), 64, }, /*Sams*/
+	{0x6600bcec, 0xFF00FFFF, (512<<20), 1, 4096, (4096<<6), 128,}, /*Sams*/
+	{0x1500aa98, 0xFFFFFFFF, (256<<20), 0, 2048, (2048<<6), 64, }, /*Tosh*/
+	{0x5500ba98, 0xFFFFFFFF, (256<<20), 1, 2048, (2048<<6), 64, }, /*Tosh*/
+	{0xd580b12c, 0xFFFFFFFF, (128<<20), 1, 2048, (2048<<6), 64, }, /*Micr*/
+	{0x5580baad, 0xFFFFFFFF, (256<<20), 1, 2048, (2048<<6), 64, }, /*Hynx*/
+	{0x5510baad, 0xFFFFFFFF, (256<<20), 1, 2048, (2048<<6), 64, }, /*Hynx*/
+	{0x1590ac2c, 0xFFFFFFFF, (512<<20), 1, 2048, (2048<<6), 64, }, /*Micr*/
+	{0x6601b3ec, 0xFF00FFFF, (1024<<20), 1, 4096, (4096<<6), 128,}, /*Sams*/
+	{0x55d1b32c, 0xFFFFFFFF, (1024<<20), 1, 2048, (2048<<6), 64, }, /*Micr*/
+	/* Note: Width flag is 0 for 8 bit Flash and 1 for 16 bit flash      */
+	/* Note: The First row will be filled at runtime during ONFI probe   */
+};
 
 uint16_t flash_onfi_crc_check(uint8_t *buffer, uint16_t count)
 {
@@ -683,25 +707,25 @@ uint32_t flash_onfi_probe(struct msm_nand_chip *chip)
 				err = -EIO;
 				break;
 			} else {
-				supported_flash.flash_id =
+				supported_flash[0].flash_id =
 					flash_read_id(chip);
-				supported_flash.widebus  =
+				supported_flash[0].widebus  =
 					onfi_param_page_ptr->
 					features_supported & 0x01;
-				supported_flash.pagesize =
+				supported_flash[0].pagesize =
 					onfi_param_page_ptr->
 					number_of_data_bytes_per_page;
-				supported_flash.blksize  =
+				supported_flash[0].blksize  =
 					onfi_param_page_ptr->
 					number_of_pages_per_block *
-					supported_flash.pagesize;
-				supported_flash.oobsize  =
+					supported_flash[0].pagesize;
+				supported_flash[0].oobsize  =
 					onfi_param_page_ptr->
 					number_of_spare_bytes_per_page;
-				supported_flash.density  =
+				supported_flash[0].density  =
 					onfi_param_page_ptr->
 					number_of_blocks_per_logical_unit
-					* supported_flash.blksize;
+					* supported_flash[0].blksize;
 
 				pr_info("ONFI probe : Found an ONFI "
 					"compliant device %s\n",
@@ -712,9 +736,9 @@ uint32_t flash_onfi_probe(struct msm_nand_chip *chip)
 				 * to ONFi specification it is reporting
 				 * as 16 bit device though it is 8 bit device!!!
 				 */
-				if (!strncmp(onfi_param_page_ptr->device_model,
-					"MT29F4G08ABC", 12))
-					supported_flash.widebus  = 0;
+				if (!strcmp(onfi_param_page_ptr->device_model,
+					"MT29F4G08ABC"))
+					supported_flash[0].widebus  = 0;
 			}
 		}
 	}
@@ -769,14 +793,6 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from,
 	uint32_t ecc_errors;
 	uint32_t total_ecc_errors = 0;
 	unsigned cwperpage;
-#if VERBOSE
-	pr_info("================================================="
-			"================\n");
-	pr_info("%s:\nfrom 0x%llx mode %d\ndatbuf 0x%p datlen 0x%x"
-			"\noobbuf 0x%p ooblen 0x%x\n",
-			__func__, from, ops->mode, ops->datbuf, ops->len,
-			ops->oobbuf, ops->ooblen);
-#endif
 
 	if (mtd->writesize == 2048)
 		page = from >> 11;
@@ -827,7 +843,20 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from,
 	else
 		page_count = ops->len / (mtd->writesize + mtd->oobsize);
 
+#if 0 /* yaffs reads more oob data than it needs */
+	if (ops->ooblen >= sectoroobsize * 4) {
+		pr_err("%s: unsupported ops->ooblen, %d\n",
+		       __func__, ops->ooblen);
+		return -EINVAL;
+	}
+#endif
+
+#if VERBOSE
+	pr_info("msm_nand_read_oob %llx %p %x %p %x\n",
+		from, ops->datbuf, ops->len, ops->oobbuf, ops->ooblen);
+#endif
 	if (ops->datbuf) {
+		/* memset(ops->datbuf, 0x55, ops->len); */
 		data_dma_addr_curr = data_dma_addr =
 			msm_nand_dma_map(chip->dev, ops->datbuf, ops->len,
 				       DMA_FROM_DEVICE);
@@ -878,8 +907,9 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from,
 		}
 
 		dma_buffer->data.addr0 = (page << 16) | oob_col;
+		/* qc example is (page >> 16) && 0xff !? */
 		dma_buffer->data.addr1 = (page >> 16) & 0xff;
-		/* chipsel_0 + enable DM interface */
+		/* flash0 + undoc bit */
 		dma_buffer->data.chipsel = 0 | 4;
 
 
@@ -1080,11 +1110,24 @@ static int msm_nand_read_oob(struct mtd_info *mtd, loff_t from,
 			       (loff_t)page * mtd->writesize, ops->len,
 			       ops->ooblen);
 		} else {
-			for (n = start_sector; n < cwperpage; n++)
-				pr_info("flash_status[%d] = %x,\
-				buffr_status[%d] = %x\n",
-				n, dma_buffer->data.result[n].flash_status,
-				n, dma_buffer->data.result[n].buffer_status);
+			pr_info("status: %x %x %x %x %x %x %x %x %x \
+					%x %x %x %x %x %x %x \n",
+				dma_buffer->data.result[0].flash_status,
+				dma_buffer->data.result[0].buffer_status,
+				dma_buffer->data.result[1].flash_status,
+				dma_buffer->data.result[1].buffer_status,
+				dma_buffer->data.result[2].flash_status,
+				dma_buffer->data.result[2].buffer_status,
+				dma_buffer->data.result[3].flash_status,
+				dma_buffer->data.result[3].buffer_status,
+				dma_buffer->data.result[4].flash_status,
+				dma_buffer->data.result[4].buffer_status,
+				dma_buffer->data.result[5].flash_status,
+				dma_buffer->data.result[5].buffer_status,
+				dma_buffer->data.result[6].flash_status,
+				dma_buffer->data.result[6].buffer_status,
+				dma_buffer->data.result[7].flash_status,
+				dma_buffer->data.result[7].buffer_status);
 		}
 #endif
 		if (err && err != -EUCLEAN && err != -EBADMSG)
@@ -1114,13 +1157,6 @@ err_dma_map_oobbuf_failed:
 		pr_err("msm_nand_read_oob %llx %x %x failed %d, corrected %d\n",
 		       from, ops->datbuf ? ops->len : 0, ops->ooblen, err,
 		       total_ecc_errors);
-#if VERBOSE
-	pr_info("\n%s: ret %d, retlen %d oobretlen %d\n",
-			__func__, err, ops->retlen, ops->oobretlen);
-
-	pr_info("==================================================="
-			"==============\n");
-#endif
 	return err;
 }
 
@@ -1143,6 +1179,7 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 			uint32_t cfg1;
 			uint32_t exec;
 			uint32_t ecccfg;
+			uint32_t ebi2_cfg;
 			uint32_t ebi2_chip_select_cfg0;
 			uint32_t adm_mux_data_ack_req_nc01;
 			uint32_t adm_mux_cmd_ack_req_nc01;
@@ -1154,6 +1191,7 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 			uint32_t nc10_flash_dev_cmd1;
 			uint32_t nc10_flash_dev_cmd_vld_default;
 			uint32_t nc10_flash_dev_cmd1_default;
+			uint32_t ebi2_cfg_default;
 			struct {
 				uint32_t flash_status;
 				uint32_t buffer_status;
@@ -1178,14 +1216,6 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 	uint32_t ecc_errors;
 	uint32_t total_ecc_errors = 0;
 	unsigned cwperpage;
-#if VERBOSE
-		pr_info("================================================="
-				"============\n");
-		pr_info("%s:\nfrom 0x%llx mode %d\ndatbuf 0x%p datlen 0x%x"
-				"\noobbuf 0x%p ooblen 0x%x\n\n",
-				__func__, from, ops->mode, ops->datbuf,
-				ops->len, ops->oobbuf, ops->ooblen);
-#endif
 
 	if (mtd->writesize == 2048)
 		page = from >> 11;
@@ -1237,6 +1267,11 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 		page_count = ops->len / mtd->writesize;
 	else
 		page_count = ops->len / (mtd->writesize + mtd->oobsize);
+
+#if VERBOSE
+	pr_info("msm_nand_read_oob_dualnandc %llx %p %x %p %x\n",
+		from, ops->datbuf, ops->len, ops->oobbuf, ops->ooblen);
+#endif
 
 	if (ops->datbuf) {
 		data_dma_addr_curr = data_dma_addr =
@@ -1302,9 +1337,9 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 				dma_buffer->data.nc10_flash_dev_cmd1 =
 								0xF00F3000;
 			} else {
-				dma_buffer->data.nandc01_addr0 = page << 16;
-				dma_buffer->data.nandc10_addr0 = (page << 16) |
-									 0x108;
+				dma_buffer->data.nandc01_addr0 =
+							(page << 16) | oob_col;
+				dma_buffer->data.nandc10_addr0 = 0x108;
 				dma_buffer->data.nc10_flash_dev_cmd_vld = 0x1D;
 				dma_buffer->data.nc10_flash_dev_cmd1 =
 								0xF00FE005;
@@ -1325,12 +1360,14 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 		dma_buffer->data.nc10_flash_dev_cmd_vld_default = 0x1D;
 		dma_buffer->data.nc10_flash_dev_cmd1_default = 0xF00F3000;
 
+		/* config ebi2 cfg reg for pingpong ( 0xA000_0004 ) */
+		dma_buffer->data.ebi2_cfg = 0x4010080;
+		dma_buffer->data.ebi2_cfg_default = 0x4010000;
 		dma_buffer->data.ebi2_chip_select_cfg0 = 0x00000805;
 		dma_buffer->data.default_ebi2_chip_select_cfg0 = 0x00000801;
 
-		/* chipsel_0 + enable DM interface */
+		/* flash0 + undoc bit */
 		dma_buffer->data.chipsel_cs0 = (1<<4) | 4;
-		/* chipsel_1 + enable DM interface */
 		dma_buffer->data.chipsel_cs1 = (1<<4) | 5;
 
 		/* GO bit for the EXEC register */
@@ -1345,6 +1382,14 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 
 			if (n == start_sector) {
 				if (!interleave_enable) {
+					/* config ebi2 cfg reg */
+					cmd->cmd = 0;
+					cmd->src = msm_virt_to_dma(chip,
+					&dma_buffer->data.ebi2_cfg);
+					cmd->dst = EBI2_CFG_REG;
+					cmd->len = 4;
+					cmd++;
+
 					cmd->cmd = 0;
 					cmd->src = msm_virt_to_dma(chip,
 					&dma_buffer->
@@ -1492,6 +1537,17 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 					cmd->len = 8;
 					cmd++;
 				} else {
+					if (!interleave_enable) {
+						cmd->cmd = 0;
+						cmd->src =
+						msm_virt_to_dma(chip,
+						&dma_buffer->
+						data.nc10_flash_dev_cmd1);
+						cmd->dst =
+						NC10(MSM_NAND_DEV_CMD1);
+						cmd->len = 4;
+						cmd++;
+					}
 					/* NC01 --> ADDR0 */
 					cmd->cmd = 0;
 					cmd->src = msm_virt_to_dma(chip,
@@ -1546,28 +1602,6 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 					sectordatasize = 528;
 
 				if (n % 2 == 0) {
-					/* MASK DATA ACK/REQ --> NC10 (0xF28)*/
-					cmd->cmd = 0;
-					cmd->src = msm_virt_to_dma(chip,
-					&dma_buffer->
-					data.adm_mux_data_ack_req_nc10);
-					cmd->dst = EBI2_NAND_ADM_MUX;
-					cmd->len = 4;
-					cmd++;
-
-					/* block on data ready from NC01, then
-					 * read the status register
-					 */
-					cmd->cmd = SRC_CRCI_NAND_DATA;
-					cmd->src = NC01(MSM_NAND_FLASH_STATUS);
-					cmd->dst = msm_virt_to_dma(chip,
-						&dma_buffer->data.result[n]);
-					/* MSM_NAND_FLASH_STATUS +
-					 * MSM_NAND_BUFFER_STATUS
-					 */
-					cmd->len = 8;
-					cmd++;
-
 					/* MASK CMD ACK/REQ --> NC01 (0x53C)*/
 					cmd->cmd = 0;
 					cmd->src = msm_virt_to_dma(chip,
@@ -1593,6 +1627,28 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 					cmd->len = 4;
 					cmd++;
 
+					/* MASK DATA ACK/REQ --> NC10 (0xF28)*/
+					cmd->cmd = 0;
+					cmd->src = msm_virt_to_dma(chip,
+					&dma_buffer->
+					data.adm_mux_data_ack_req_nc10);
+					cmd->dst = EBI2_NAND_ADM_MUX;
+					cmd->len = 4;
+					cmd++;
+
+					/* block on data ready from NC01, then
+					 * read the status register
+					 */
+					cmd->cmd = SRC_CRCI_NAND_DATA;
+					cmd->src = NC01(MSM_NAND_FLASH_STATUS);
+					cmd->dst = msm_virt_to_dma(chip,
+						&dma_buffer->data.result[n]);
+					/* MSM_NAND_FLASH_STATUS +
+					 * MSM_NAND_BUFFER_STATUS
+					 */
+					cmd->len = 8;
+					cmd++;
+
 					cmd->cmd = 0;
 					cmd->src = NC01(MSM_NAND_FLASH_BUFFER);
 					cmd->dst = data_dma_addr_curr;
@@ -1600,30 +1656,6 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 					cmd->len = sectordatasize;
 					cmd++;
 				} else {
-					/* MASK DATA ACK/REQ -->
-					 * NC01 (0xA3C)
-					 */
-					cmd->cmd = 0;
-					cmd->src = msm_virt_to_dma(chip,
-					&dma_buffer->
-					data.adm_mux_data_ack_req_nc01);
-					cmd->dst = EBI2_NAND_ADM_MUX;
-					cmd->len = 4;
-					cmd++;
-
-					/* block on data ready from NC10
-					 * then read the status register
-					 */
-					cmd->cmd = SRC_CRCI_NAND_DATA;
-					cmd->src =
-					NC10(MSM_NAND_FLASH_STATUS);
-					cmd->dst = msm_virt_to_dma(chip,
-					   &dma_buffer->data.result[n]);
-					/* MSM_NAND_FLASH_STATUS +
-					 * MSM_NAND_BUFFER_STATUS
-					 */
-					cmd->len = 8;
-					cmd++;
 					if (n != cwperpage - 1) {
 						/* MASK CMD ACK/REQ -->
 						 * NC10 (0xF14)
@@ -1653,6 +1685,56 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 						cmd->dst =
 						NC01(MSM_NAND_EXEC_CMD);
 						cmd->len = 4;
+						cmd++;
+
+						/* MASK DATA ACK/REQ -->
+						 * NC01 (0xA3C)
+						 */
+						cmd->cmd = 0;
+						cmd->src = msm_virt_to_dma(chip,
+						&dma_buffer->
+						data.adm_mux_data_ack_req_nc01);
+						cmd->dst = EBI2_NAND_ADM_MUX;
+						cmd->len = 4;
+						cmd++;
+
+						/* block on data ready from NC10
+						 * then read the status register
+						 */
+						cmd->cmd = SRC_CRCI_NAND_DATA;
+						cmd->src =
+						NC10(MSM_NAND_FLASH_STATUS);
+						cmd->dst = msm_virt_to_dma(chip,
+						   &dma_buffer->data.result[n]);
+						/* MSM_NAND_FLASH_STATUS +
+						 * MSM_NAND_BUFFER_STATUS
+						 */
+						cmd->len = 8;
+						cmd++;
+					} else {
+						/* MASK DATA ACK/REQ ->
+						 * NC01 (0xA3C)
+						 */
+						cmd->cmd = 0;
+						cmd->src = msm_virt_to_dma(chip,
+						&dma_buffer->
+						data.adm_mux_data_ack_req_nc01);
+						cmd->dst = EBI2_NAND_ADM_MUX;
+						cmd->len = 4;
+						cmd++;
+
+						/* block on data ready from NC10
+						 * then read the status register
+						 */
+						cmd->cmd = SRC_CRCI_NAND_DATA;
+						cmd->src =
+						NC10(MSM_NAND_FLASH_STATUS);
+						cmd->dst = msm_virt_to_dma(chip,
+						   &dma_buffer->data.result[n]);
+						/* MSM_NAND_FLASH_STATUS +
+						 * MSM_NAND_BUFFER_STATUS
+						 */
+						cmd->len = 8;
 						cmd++;
 					}
 					cmd->cmd = 0;
@@ -1720,6 +1802,13 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 			cmd->src = msm_virt_to_dma(chip,
 			&dma_buffer->data.nc10_flash_dev_cmd1_default);
 			cmd->dst = NC10(MSM_NAND_DEV_CMD1);
+			cmd->len = 4;
+			cmd++;
+
+			cmd->cmd = 0;
+			cmd->src = msm_virt_to_dma(chip,
+			&dma_buffer->data.ebi2_cfg_default);
+			cmd->dst = EBI2_CFG_REG;
 			cmd->len = 4;
 			cmd++;
 		} else {
@@ -1795,7 +1884,7 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 		if (pageerr) {
 			for (n = start_sector; n < cwperpage; n++) {
 				if (dma_buffer->data.result[n].buffer_status
-					& MSM_NAND_BUF_STAT_UNCRCTBL_ERR) {
+						& 0x8) {
 					/* not thread safe */
 					mtd->ecc_stats.failed++;
 					pageerr = -EBADMSG;
@@ -1806,8 +1895,7 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 		if (!rawerr) { /* check for corretable errors */
 			for (n = start_sector; n < cwperpage; n++) {
 				ecc_errors = dma_buffer->data.
-					result[n].buffer_status
-					& MSM_NAND_BUF_STAT_NUM_ERR_MASK;
+					result[n].buffer_status & 0x7;
 				if (ecc_errors) {
 					total_ecc_errors += ecc_errors;
 					/* not thread safe */
@@ -1826,24 +1914,63 @@ static int msm_nand_read_oob_dualnandc(struct mtd_info *mtd, loff_t from,
 				"%llx %x %x empty page\n",
 			       (loff_t)page * mtd->writesize, ops->len,
 			       ops->ooblen);
+		} else if (!interleave_enable) {
+			pr_info("status: %x %x %x %x %x %x %x %x %x \
+					%x %x %x %x %x %x %x \n",
+				dma_buffer->data.result[0].flash_status,
+				dma_buffer->data.result[0].buffer_status,
+				dma_buffer->data.result[1].flash_status,
+				dma_buffer->data.result[1].buffer_status,
+				dma_buffer->data.result[2].flash_status,
+				dma_buffer->data.result[2].buffer_status,
+				dma_buffer->data.result[3].flash_status,
+				dma_buffer->data.result[3].buffer_status,
+				dma_buffer->data.result[4].flash_status,
+				dma_buffer->data.result[4].buffer_status,
+				dma_buffer->data.result[5].flash_status,
+				dma_buffer->data.result[5].buffer_status,
+				dma_buffer->data.result[6].flash_status,
+				dma_buffer->data.result[6].buffer_status,
+				dma_buffer->data.result[7].flash_status,
+				dma_buffer->data.result[7].buffer_status);
 		} else {
-			for (n = start_sector; n < cwperpage; n++) {
-				if (n%2) {
-					pr_info("NC10: flash_status[%d] = %x, "
-					 "buffr_status[%d] = %x\n",
-					n, dma_buffer->
-						data.result[n].flash_status,
-					n, dma_buffer->
-						data.result[n].buffer_status);
-				} else {
-					pr_info("NC01: flash_status[%d] = %x, "
-					 "buffr_status[%d] = %x\n",
-					n, dma_buffer->
-						data.result[n].flash_status,
-					n, dma_buffer->
-						data.result[n].buffer_status);
-				}
-			}
+			pr_info("status: %x %x %x %x %x %x %x %x %x \
+					%x %x %x %x %x %x %x \
+					%x %x %x %x %x %x %x %x %x \
+					%x %x %x %x %x %x %x \n",
+				dma_buffer->data.result[0].flash_status,
+				dma_buffer->data.result[0].buffer_status,
+				dma_buffer->data.result[1].flash_status,
+				dma_buffer->data.result[1].buffer_status,
+				dma_buffer->data.result[2].flash_status,
+				dma_buffer->data.result[2].buffer_status,
+				dma_buffer->data.result[3].flash_status,
+				dma_buffer->data.result[3].buffer_status,
+				dma_buffer->data.result[4].flash_status,
+				dma_buffer->data.result[4].buffer_status,
+				dma_buffer->data.result[5].flash_status,
+				dma_buffer->data.result[5].buffer_status,
+				dma_buffer->data.result[6].flash_status,
+				dma_buffer->data.result[6].buffer_status,
+				dma_buffer->data.result[7].flash_status,
+				dma_buffer->data.result[7].buffer_status,
+				dma_buffer->data.result[8].flash_status,
+				dma_buffer->data.result[8].buffer_status,
+				dma_buffer->data.result[9].flash_status,
+				dma_buffer->data.result[9].buffer_status,
+				dma_buffer->data.result[10].flash_status,
+				dma_buffer->data.result[10].buffer_status,
+				dma_buffer->data.result[11].flash_status,
+				dma_buffer->data.result[11].buffer_status,
+				dma_buffer->data.result[12].flash_status,
+				dma_buffer->data.result[12].buffer_status,
+				dma_buffer->data.result[13].flash_status,
+				dma_buffer->data.result[13].buffer_status,
+				dma_buffer->data.result[14].flash_status,
+				dma_buffer->data.result[14].buffer_status,
+				dma_buffer->data.result[15].flash_status,
+				dma_buffer->data.result[15].buffer_status);
+
 		}
 #endif
 		if (err && err != -EUCLEAN && err != -EBADMSG)
@@ -1875,13 +2002,6 @@ err_dma_map_oobbuf_failed:
 			"%llx %x %x failed %d, corrected %d\n",
 			from, ops->datbuf ? ops->len : 0, ops->ooblen, err,
 			total_ecc_errors);
-#if VERBOSE
-	pr_info("\n%s: ret %d, retlen %d oobretlen %d\n",
-			__func__, err, ops->retlen, ops->oobretlen);
-
-	pr_info("==================================================="
-			"==========\n");
-#endif
 	return err;
 }
 
@@ -1891,6 +2011,9 @@ msm_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 {
 	int ret;
 	struct mtd_oob_ops ops;
+	uint8_t *org_buf = NULL;
+	size_t org_len = len;
+	loff_t org_from = from;
 
 	/* printk("msm_nand_read %llx %x\n", from, len); */
 
@@ -1900,10 +2023,38 @@ msm_nand_read(struct mtd_info *mtd, loff_t from, size_t len,
 	ops.ooblen = 0;
 	ops.datbuf = buf;
 	ops.oobbuf = NULL;
+
+	/* support for non page alligned read */
+	if (ops.datbuf != NULL && (ops.len % mtd->writesize) != 0) {
+		ops.len += mtd->writesize;
+		ops.len ^= ops.len & (mtd->writesize - 1);
+		org_buf = ops.datbuf;
+		from ^= from & (mtd->writesize - 1);
+		ops.datbuf = kmalloc(ops.len, GFP_KERNEL);
+		if (!ops.datbuf){
+			ops.datbuf = org_buf;
+			org_buf = NULL;
+			ops.len = org_len;
+			pr_err("%s: allocation of temporary buffer has failed",
+		       		__func__);
+		}
+	}
+
+
 	if (!dual_nand_ctlr_present)
 		ret =  msm_nand_read_oob(mtd, from, &ops);
 	else
 		ret = msm_nand_read_oob_dualnandc(mtd, from, &ops);
+
+	if (org_buf)
+	{
+		memcpy(org_buf, ops.datbuf + (org_from - from), org_len);
+		ops.len = org_len;
+		kfree(ops.datbuf);
+		ops.datbuf = org_buf;
+		ops.retlen = org_len;
+	}
+
 	*retlen = ops.retlen;
 	return ret;
 }
@@ -1942,14 +2093,6 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 	unsigned page_count;
 	unsigned pages_written = 0;
 	unsigned cwperpage;
-#if VERBOSE
-	pr_info("================================================="
-			"================\n");
-	pr_info("%s:\nto 0x%llx mode %d\ndatbuf 0x%p datlen 0x%x"
-			"\noobbuf 0x%p ooblen 0x%x\n",
-			__func__, to, ops->mode, ops->datbuf, ops->len,
-			ops->oobbuf, ops->ooblen);
-#endif
 
 	if (mtd->writesize == 2048)
 		page = to >> 11;
@@ -1989,6 +2132,13 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 		pr_err("%s: unsupported ops->datbuf == NULL\n", __func__);
 		return -EINVAL;
 	}
+#if 0 /* yaffs writes more oob data than it needs */
+	if (ops->ooblen >= sectoroobsize * 4) {
+		pr_err("%s: unsupported ops->ooblen, %d\n",
+		       __func__, ops->ooblen);
+		return -EINVAL;
+	}
+#endif
 	if (ops->mode != MTD_OOB_RAW && ops->ooblen != 0 && ops->ooboffs != 0) {
 		pr_err("%s: unsupported ops->ooboffs, %d\n",
 		       __func__, ops->ooboffs);
@@ -2027,6 +2177,7 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 	while (page_count-- > 0) {
 		cmd = dma_buffer->cmd;
 
+		/* CMD / ADDR0 / ADDR1 / CHIPSEL program values */
 		if (ops->mode != MTD_OOB_RAW) {
 			dma_buffer->data.cfg0 = chip->CFG0;
 			dma_buffer->data.cfg1 = chip->CFG1;
@@ -2037,15 +2188,13 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 						(chip->CFG1 & CFG1_WIDE_FLASH);
 		}
 
-		/* CMD / ADDR0 / ADDR1 / CHIPSEL program values */
 		dma_buffer->data.cmd = MSM_NAND_CMD_PRG_PAGE;
 		dma_buffer->data.addr0 = page << 16;
 		dma_buffer->data.addr1 = (page >> 16) & 0xff;
-		/* chipsel_0 + enable DM interface */
-		dma_buffer->data.chipsel = 0 | 4;
+		dma_buffer->data.chipsel = 0 | 4; /* flash0 + undoc bit */
 
 
-		/* GO bit for the EXEC register */
+			/* GO bit for the EXEC register */
 		dma_buffer->data.exec = 1;
 		dma_buffer->data.clrfstatus = 0x00000020;
 		dma_buffer->data.clrrstatus = 0x000000C0;
@@ -2085,7 +2234,7 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 				cmd++;
 			}
 
-			/* write data block */
+				/* write data block */
 			if (ops->mode != MTD_OOB_RAW)
 				sectordatawritesize = (n < (cwperpage - 1)) ?
 					516 : (512 - ((cwperpage - 1) << 2));
@@ -2191,10 +2340,15 @@ msm_nand_write_oob(struct mtd_info *mtd, loff_t to, struct mtd_oob_ops *ops)
 		}
 
 #if VERBOSE
-		for (n = 0; n < cwperpage; n++)
-			pr_info("write pg %d: flash_status[%d] = %x\n", page,
-				n, dma_buffer->data.flash_status[n]);
-
+		pr_info("write pg %d: status: %x %x %x %x %x %x %x %x\n", page,
+			dma_buffer->data.flash_status[0],
+			dma_buffer->data.flash_status[1],
+			dma_buffer->data.flash_status[2],
+			dma_buffer->data.flash_status[3],
+			dma_buffer->data.flash_status[4],
+			dma_buffer->data.flash_status[5],
+			dma_buffer->data.flash_status[6],
+			dma_buffer->data.flash_status[7]);
 #endif
 		if (err)
 			break;
@@ -2220,14 +2374,6 @@ err_dma_map_oobbuf_failed:
 	if (err)
 		pr_err("msm_nand_write_oob %llx %x %x failed %d\n",
 		       to, ops->len, ops->ooblen, err);
-
-#if VERBOSE
-		pr_info("\n%s: ret %d, retlen %d oobretlen %d\n",
-				__func__, err, ops->retlen, ops->oobretlen);
-
-		pr_info("==================================================="
-				"==============\n");
-#endif
 	return err;
 }
 
@@ -2250,7 +2396,7 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 			uint32_t cfg1;
 			uint32_t exec;
 			uint32_t ecccfg;
-			uint32_t cfg0_nc01;
+			uint32_t ebi2_cfg;
 			uint32_t ebi2_chip_select_cfg0;
 			uint32_t adm_mux_data_ack_req_nc01;
 			uint32_t adm_mux_cmd_ack_req_nc01;
@@ -2262,6 +2408,7 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 			uint32_t nc10_flash_dev_cmd0;
 			uint32_t nc01_flash_dev_cmd_vld_default;
 			uint32_t nc10_flash_dev_cmd0_default;
+			uint32_t ebi2_cfg_default;
 			uint32_t flash_status[16];
 			uint32_t clrfstatus;
 			uint32_t clrrstatus;
@@ -2280,14 +2427,6 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 	unsigned page_count;
 	unsigned pages_written = 0;
 	unsigned cwperpage;
-#if VERBOSE
-		pr_info("================================================="
-				"============\n");
-		pr_info("%s:\nto 0x%llx mode %d\ndatbuf 0x%p datlen 0x%x"
-				"\noobbuf 0x%p ooblen 0x%x\n\n",
-				__func__, to, ops->mode, ops->datbuf, ops->len,
-				ops->oobbuf, ops->ooblen);
-#endif
 
 	if (mtd->writesize == 2048)
 		page = to >> 11;
@@ -2336,6 +2475,11 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 		       __func__, ops->ooboffs);
 		return -EINVAL;
 	}
+
+#if VERBOSE
+	pr_info("msm_nand_write_oob_dualnandc %llx %p %x %p %x\n",
+		to, ops->datbuf, ops->len, ops->oobbuf, ops->ooblen);
+#endif
 
 	if (ops->datbuf) {
 		data_dma_addr_curr = data_dma_addr =
@@ -2387,23 +2531,14 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 
 		if (ops->mode != MTD_OOB_RAW) {
 			dma_buffer->data.cfg0 = ((chip->CFG0 & ~(7U << 6))
-				& ~(1 << 4)) | ((((cwperpage >> 1)-1)) << 6);
+				| (1 << 4)) | ((((cwperpage >> 1)-1)) << 6);
 			dma_buffer->data.cfg1 = chip->CFG1;
 		} else {
 			dma_buffer->data.cfg0 = ((MSM_NAND_CFG0_RAW &
-			~(7U << 6)) & ~(1 << 4)) | (((cwperpage >> 1)-1) << 6);
+			~(7U << 6)) | (1<<4)) | (((cwperpage >> 1)-1) << 6);
 			dma_buffer->data.cfg1 = MSM_NAND_CFG1_RAW |
 					(chip->CFG1 & CFG1_WIDE_FLASH);
 		}
-
-		/* Disables the automatic issuing of the read
-		 * status command for first NAND controller.
-		 */
-		if (!interleave_enable)
-			dma_buffer->data.cfg0_nc01 = dma_buffer->data.cfg0
-							| (1 << 4);
-		else
-			dma_buffer->data.cfg0 |= (1 << 4);
 
 		dma_buffer->data.cmd = MSM_NAND_CMD_PRG_PAGE;
 		dma_buffer->data.chipsel_cs0 = (1<<4) | 4;
@@ -2411,6 +2546,10 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 
 		/* GO bit for the EXEC register */
 		dma_buffer->data.exec = 1;
+
+		/* config ebi2 cfg reg ( 0xA000_0004 ) */
+		dma_buffer->data.ebi2_cfg = 0x4010080;
+		dma_buffer->data.ebi2_cfg_default = 0x4010000;
 
 		if (!interleave_enable) {
 			dma_buffer->data.nandc01_addr0 = (page << 16) | 0x0;
@@ -2430,6 +2569,14 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 
 			if (n == 0) {
 				if (!interleave_enable) {
+					/* config ebi2 cfg reg */
+					cmd->cmd = 0;
+					cmd->src = msm_virt_to_dma(chip,
+					&dma_buffer->data.ebi2_cfg);
+					cmd->dst = EBI2_CFG_REG;
+					cmd->len = 4;
+					cmd++;
+
 					cmd->cmd = 0;
 					cmd->src = msm_virt_to_dma(chip,
 					&dma_buffer->
@@ -2455,29 +2602,11 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 					cmd->len = 8;
 					cmd++;
 
-					/* Disables the automatic issue of the
-					 * read status command after the write
-					 * operation.
-					 */
-					cmd->cmd = 0;
-					cmd->src = msm_virt_to_dma(chip,
-						&dma_buffer->data.cfg0_nc01);
-					cmd->dst = NC01(MSM_NAND_DEV0_CFG0);
-					cmd->len = 4;
-					cmd++;
-
 					cmd->cmd = 0;
 					cmd->src = msm_virt_to_dma(chip,
 						&dma_buffer->data.cfg0);
-					cmd->dst = NC10(MSM_NAND_DEV0_CFG0);
-					cmd->len = 4;
-					cmd++;
-
-					cmd->cmd = 0;
-					cmd->src = msm_virt_to_dma(chip,
-						&dma_buffer->data.cfg1);
-					cmd->dst = NC11(MSM_NAND_DEV0_CFG1);
-					cmd->len = 4;
+					cmd->dst = NC11(MSM_NAND_DEV0_CFG0);
+					cmd->len = 8;
 					cmd++;
 				} else {
 					/* enable CS1 */
@@ -2636,6 +2765,13 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 			}
 
 			if (n % 2 == 0) {
+				/* kick the NC01 execute register */
+				cmd->cmd = 0;
+				cmd->src = msm_virt_to_dma(chip,
+						&dma_buffer->data.exec);
+				cmd->dst = NC01(MSM_NAND_EXEC_CMD);
+				cmd->len = 4;
+				cmd++;
 				if (n != 0) {
 					/* MASK DATA ACK/REQ --> NC01 (0xA3C)*/
 					cmd->cmd = 0;
@@ -2656,14 +2792,15 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 					cmd->len = 4;
 					cmd++;
 				}
-				/* kick the NC01 execute register */
+			} else {
+				/* kick the execute register */
 				cmd->cmd = 0;
-				cmd->src = msm_virt_to_dma(chip,
-						&dma_buffer->data.exec);
-				cmd->dst = NC01(MSM_NAND_EXEC_CMD);
+				cmd->src =
+				msm_virt_to_dma(chip, &dma_buffer->data.exec);
+				cmd->dst = NC10(MSM_NAND_EXEC_CMD);
 				cmd->len = 4;
 				cmd++;
-			} else {
+
 				/* MASK DATA ACK/REQ --> NC10 (0xF28)*/
 				cmd->cmd = 0;
 				cmd->src = msm_virt_to_dma(chip,
@@ -2679,14 +2816,6 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 				cmd->src = NC01(MSM_NAND_FLASH_STATUS);
 				cmd->dst = msm_virt_to_dma(chip,
 				&dma_buffer->data.flash_status[n-1]);
-				cmd->len = 4;
-				cmd++;
-
-				/* kick the execute register */
-				cmd->cmd = 0;
-				cmd->src =
-				msm_virt_to_dma(chip, &dma_buffer->data.exec);
-				cmd->dst = NC10(MSM_NAND_EXEC_CMD);
 				cmd->len = 4;
 				cmd++;
 			}
@@ -2746,6 +2875,13 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 			cmd->dst = NC10(MSM_NAND_DEV_CMD0);
 			cmd->len = 4;
 			cmd++;
+
+			cmd->cmd = 0;
+			cmd->src = msm_virt_to_dma(chip,
+				&dma_buffer->data.ebi2_cfg_default);
+			cmd->dst = EBI2_CFG_REG;
+			cmd->len = 4;
+			cmd++;
 		} else {
 			/* disable CS1 */
 			cmd->cmd = 0;
@@ -2784,22 +2920,36 @@ msm_nand_write_oob_dualnandc(struct mtd_info *mtd, loff_t to,
 				break;
 			}
 		}
-		/* check for flash status busy for the last codeword */
-		if (!interleave_enable)
-			if (!(dma_buffer->data.flash_status[cwperpage - 1]
-								& 0x20)) {
-				err = -EIO;
-				break;
-			}
 #if VERBOSE
-	for (n = 0; n < cwperpage; n++) {
-		if (n%2) {
-			pr_info("NC10: write pg %d: flash_status[%d] = %x\n",
-				page, n, dma_buffer->data.flash_status[n]);
-		} else {
-			pr_info("NC01: write pg %d: flash_status[%d] = %x\n",
-				page, n, dma_buffer->data.flash_status[n]);
-		}
+	if (!interleave_enable) {
+		pr_info("write pg %d: status: %x %x %x %x %x %x %x %x\n", page,
+			dma_buffer->data.flash_status[0],
+			dma_buffer->data.flash_status[1],
+			dma_buffer->data.flash_status[2],
+			dma_buffer->data.flash_status[3],
+			dma_buffer->data.flash_status[4],
+			dma_buffer->data.flash_status[5],
+			dma_buffer->data.flash_status[6],
+			dma_buffer->data.flash_status[7]);
+	} else {
+		pr_info("write pg %d: status: %x %x %x %x %x %x %x %x \
+			%x %x %x %x %x %x %x %x \n", page,
+			dma_buffer->data.flash_status[0],
+			dma_buffer->data.flash_status[1],
+			dma_buffer->data.flash_status[2],
+			dma_buffer->data.flash_status[3],
+			dma_buffer->data.flash_status[4],
+			dma_buffer->data.flash_status[5],
+			dma_buffer->data.flash_status[6],
+			dma_buffer->data.flash_status[7],
+			dma_buffer->data.flash_status[8],
+			dma_buffer->data.flash_status[9],
+			dma_buffer->data.flash_status[10],
+			dma_buffer->data.flash_status[11],
+			dma_buffer->data.flash_status[12],
+			dma_buffer->data.flash_status[13],
+			dma_buffer->data.flash_status[14],
+			dma_buffer->data.flash_status[15]);
 	}
 #endif
 		if (err)
@@ -2826,14 +2976,6 @@ err_dma_map_oobbuf_failed:
 	if (err)
 		pr_err("msm_nand_write_oob_dualnandc %llx %x %x failed %d\n",
 		       to, ops->len, ops->ooblen, err);
-
-#if VERBOSE
-	pr_info("\n%s: ret %d, retlen %d oobretlen %d\n",
-			__func__, err, ops->retlen, ops->oobretlen);
-
-	pr_info("==================================================="
-			"==========\n");
-#endif
 	return err;
 }
 
@@ -2865,20 +3007,8 @@ msm_nand_erase(struct mtd_info *mtd, struct erase_info *instr)
 	struct {
 		dmov_s cmd[6];
 		unsigned cmdptr;
-		struct {
-			uint32_t cmd;
-			uint32_t addr0;
-			uint32_t addr1;
-			uint32_t chipsel;
-			uint32_t cfg0;
-			uint32_t cfg1;
-			uint32_t exec;
-			uint32_t flash_status;
-			uint32_t clrfstatus;
-			uint32_t clrrstatus;
-		} data;
+		unsigned data[10];
 	} *dma_buffer;
-	dmov_s *cmd;
 	unsigned page = 0;
 
 	if (mtd->writesize == 2048)
@@ -2902,57 +3032,50 @@ msm_nand_erase(struct mtd_info *mtd, struct erase_info *instr)
 		   (dma_buffer = msm_nand_get_dma_buffer(
 			    chip, sizeof(*dma_buffer))));
 
-	cmd = dma_buffer->cmd;
+	dma_buffer->data[0] = MSM_NAND_CMD_BLOCK_ERASE;
+	dma_buffer->data[1] = page;
+	dma_buffer->data[2] = 0;
+	dma_buffer->data[3] = 0 | 4;
+	dma_buffer->data[4] = 1;
+	dma_buffer->data[5] = 0xeeeeeeee;
+	dma_buffer->data[6] = chip->CFG0 & (~(7 << 6));  /* CW_PER_PAGE = 0 */
+	dma_buffer->data[7] = chip->CFG1;
+	dma_buffer->data[8] = 0x00000020;
+	dma_buffer->data[9] = 0x000000C0;
+	BUILD_BUG_ON(9 != ARRAY_SIZE(dma_buffer->data) - 1);
 
-	dma_buffer->data.cmd = MSM_NAND_CMD_BLOCK_ERASE;
-	dma_buffer->data.addr0 = page;
-	dma_buffer->data.addr1 = 0;
-	dma_buffer->data.chipsel = 0 | 4;
-	dma_buffer->data.exec = 1;
-	dma_buffer->data.flash_status = 0xeeeeeeee;
-	dma_buffer->data.cfg0 = chip->CFG0 & (~(7 << 6));  /* CW_PER_PAGE = 0 */
-	dma_buffer->data.cfg1 = chip->CFG1;
-	dma_buffer->data.clrfstatus = 0x00000020;
-	dma_buffer->data.clrrstatus = 0x000000C0;
+	dma_buffer->cmd[0].cmd = DST_CRCI_NAND_CMD | CMD_OCB;
+	dma_buffer->cmd[0].src = msm_virt_to_dma(chip, &dma_buffer->data[0]);
+	dma_buffer->cmd[0].dst = MSM_NAND_FLASH_CMD;
+	dma_buffer->cmd[0].len = 16;
 
-	cmd->cmd = DST_CRCI_NAND_CMD | CMD_OCB;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.cmd);
-	cmd->dst = MSM_NAND_FLASH_CMD;
-	cmd->len = 16;
-	cmd++;
+	dma_buffer->cmd[1].cmd = 0;
+	dma_buffer->cmd[1].src = msm_virt_to_dma(chip, &dma_buffer->data[6]);
+	dma_buffer->cmd[1].dst = MSM_NAND_DEV0_CFG0;
+	dma_buffer->cmd[1].len = 8;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.cfg0);
-	cmd->dst = MSM_NAND_DEV0_CFG0;
-	cmd->len = 8;
-	cmd++;
+	dma_buffer->cmd[2].cmd = 0;
+	dma_buffer->cmd[2].src = msm_virt_to_dma(chip, &dma_buffer->data[4]);
+	dma_buffer->cmd[2].dst = MSM_NAND_EXEC_CMD;
+	dma_buffer->cmd[2].len = 4;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.exec);
-	cmd->dst = MSM_NAND_EXEC_CMD;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[3].cmd = SRC_CRCI_NAND_DATA;
+	dma_buffer->cmd[3].src = MSM_NAND_FLASH_STATUS;
+	dma_buffer->cmd[3].dst = msm_virt_to_dma(chip, &dma_buffer->data[5]);
+	dma_buffer->cmd[3].len = 4;
 
-	cmd->cmd = SRC_CRCI_NAND_DATA;
-	cmd->src = MSM_NAND_FLASH_STATUS;
-	cmd->dst = msm_virt_to_dma(chip, &dma_buffer->data.flash_status);
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[4].cmd = 0;
+	dma_buffer->cmd[4].src = msm_virt_to_dma(chip, &dma_buffer->data[8]);
+	dma_buffer->cmd[4].dst = MSM_NAND_FLASH_STATUS;
+	dma_buffer->cmd[4].len = 4;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.clrfstatus);
-	cmd->dst = MSM_NAND_FLASH_STATUS;
-	cmd->len = 4;
-	cmd++;
-
-	cmd->cmd = CMD_OCU | CMD_LC;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.clrrstatus);
-	cmd->dst = MSM_NAND_READ_STATUS;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[5].cmd = CMD_OCU | CMD_LC;
+	dma_buffer->cmd[5].src = msm_virt_to_dma(chip, &dma_buffer->data[9]);
+	dma_buffer->cmd[5].dst = MSM_NAND_READ_STATUS;
+	dma_buffer->cmd[5].len = 4;
 
 	BUILD_BUG_ON(5 != ARRAY_SIZE(dma_buffer->cmd) - 1);
-	BUG_ON(cmd - dma_buffer->cmd > ARRAY_SIZE(dma_buffer->cmd));
+
 	dma_buffer->cmdptr =
 		(msm_virt_to_dma(chip, dma_buffer->cmd) >> 3) | CMD_PTR_LP;
 
@@ -2966,8 +3089,7 @@ msm_nand_erase(struct mtd_info *mtd, struct erase_info *instr)
 	 * erase success bit was not set.
 	 */
 
-	if (dma_buffer->data.flash_status & 0x110 ||
-			!(dma_buffer->data.flash_status & 0x80))
+	if (dma_buffer->data[5] & 0x110 || !(dma_buffer->data[5] & 0x80))
 		err = -EIO;
 	else
 		err = 0;
@@ -2993,31 +3115,15 @@ msm_nand_erase_dualnandc(struct mtd_info *mtd, struct erase_info *instr)
 	struct {
 		dmov_s cmd[18];
 		unsigned cmdptr;
-		struct {
-			uint32_t cmd;
-			uint32_t addr0;
-			uint32_t addr1;
-			uint32_t chipsel_cs0;
-			uint32_t chipsel_cs1;
-			uint32_t cfg0;
-			uint32_t cfg1;
-			uint32_t exec;
-			uint32_t ecccfg;
-			uint32_t ebi2_chip_select_cfg0;
-			uint32_t adm_mux_data_ack_req_nc01;
-			uint32_t adm_mux_cmd_ack_req_nc01;
-			uint32_t adm_mux_data_ack_req_nc10;
-			uint32_t adm_mux_cmd_ack_req_nc10;
-			uint32_t adm_default_mux;
-			uint32_t default_ebi2_chip_select_cfg0;
-			uint32_t nc01_flash_dev_cmd0;
-			uint32_t nc01_flash_dev_cmd0_default;
-			uint32_t flash_status[2];
-			uint32_t clrfstatus;
-			uint32_t clrrstatus;
-		} data;
+		uint32_t ebi2_chip_select_cfg0;
+		uint32_t adm_mux_data_ack_req_nc01;
+		uint32_t adm_mux_cmd_ack_req_nc01;
+		uint32_t adm_mux_data_ack_req_nc10;
+		uint32_t adm_mux_cmd_ack_req_nc10;
+		uint32_t adm_default_mux;
+		uint32_t default_ebi2_chip_select_cfg0;
+		unsigned data[12];
 	} *dma_buffer;
-	dmov_s *cmd;
 	unsigned page = 0;
 
 	if (mtd->writesize == 2048)
@@ -3044,153 +3150,135 @@ msm_nand_erase_dualnandc(struct mtd_info *mtd, struct erase_info *instr)
 		   (dma_buffer = msm_nand_get_dma_buffer(
 			    chip, sizeof(*dma_buffer))));
 
-	cmd = dma_buffer->cmd;
+	dma_buffer->data[0] = MSM_NAND_CMD_BLOCK_ERASE;
+	dma_buffer->data[1] = page;
+	dma_buffer->data[2] = 0;
+	dma_buffer->data[3] = (1<<4) | 4;
+	dma_buffer->data[4] = (1<<4) | 5;
+	dma_buffer->data[5] = 1;
+	dma_buffer->data[6] = 0xeeeeeeee;
+	dma_buffer->data[7] = 0xeeeeeeee;
+	dma_buffer->data[8] = chip->CFG0 & (~(7 << 6));  /* CW_PER_PAGE = 0 */
+	dma_buffer->data[9] = chip->CFG1;
+	dma_buffer->data[10] = 0x00000020;
+	dma_buffer->data[11] = 0x000000C0;
 
-	dma_buffer->data.cmd = MSM_NAND_CMD_BLOCK_ERASE;
-	dma_buffer->data.addr0 = page;
-	dma_buffer->data.addr1 = 0;
-	dma_buffer->data.chipsel_cs0 = (1<<4) | 4;
-	dma_buffer->data.chipsel_cs1 = (1<<4) | 5;
-	dma_buffer->data.exec = 1;
-	dma_buffer->data.flash_status[0] = 0xeeeeeeee;
-	dma_buffer->data.flash_status[1] = 0xeeeeeeee;
-	dma_buffer->data.cfg0 = chip->CFG0 & (~(7 << 6));  /* CW_PER_PAGE = 0 */
-	dma_buffer->data.cfg1 = chip->CFG1;
-	dma_buffer->data.clrfstatus = 0x00000020;
-	dma_buffer->data.clrrstatus = 0x000000C0;
+	dma_buffer->ebi2_chip_select_cfg0 = 0x00000805;
+	dma_buffer->adm_mux_data_ack_req_nc01 = 0x00000A3C;
+	dma_buffer->adm_mux_cmd_ack_req_nc01  = 0x0000053C;
+	dma_buffer->adm_mux_data_ack_req_nc10 = 0x00000F28;
+	dma_buffer->adm_mux_cmd_ack_req_nc10  = 0x00000F14;
+	dma_buffer->adm_default_mux = 0x00000FC0;
+	dma_buffer->default_ebi2_chip_select_cfg0 = 0x00000801;
 
-	dma_buffer->data.ebi2_chip_select_cfg0 = 0x00000805;
-	dma_buffer->data.adm_mux_data_ack_req_nc01 = 0x00000A3C;
-	dma_buffer->data.adm_mux_cmd_ack_req_nc01  = 0x0000053C;
-	dma_buffer->data.adm_mux_data_ack_req_nc10 = 0x00000F28;
-	dma_buffer->data.adm_mux_cmd_ack_req_nc10  = 0x00000F14;
-	dma_buffer->data.adm_default_mux = 0x00000FC0;
-	dma_buffer->data.default_ebi2_chip_select_cfg0 = 0x00000801;
+	BUILD_BUG_ON(11 != ARRAY_SIZE(dma_buffer->data) - 1);
 
 	/* enable CS1 */
-	cmd->cmd = 0 | CMD_OCB;
-	cmd->src = msm_virt_to_dma(chip,
-			&dma_buffer->data.ebi2_chip_select_cfg0);
-	cmd->dst = EBI2_CHIP_SELECT_CFG0;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[0].cmd = 0 | CMD_OCB;
+	dma_buffer->cmd[0].src = msm_virt_to_dma(chip,
+				&dma_buffer->ebi2_chip_select_cfg0);
+	dma_buffer->cmd[0].dst = EBI2_CHIP_SELECT_CFG0;
+	dma_buffer->cmd[0].len = 4;
 
 	/* erase CS0 block now !!! */
 	/* 0xF14 */
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip,
-			&dma_buffer->data.adm_mux_cmd_ack_req_nc10);
-	cmd->dst = EBI2_NAND_ADM_MUX;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[1].cmd = 0;
+	dma_buffer->cmd[1].src = msm_virt_to_dma(chip,
+				&dma_buffer->adm_mux_cmd_ack_req_nc10);
+	dma_buffer->cmd[1].dst = EBI2_NAND_ADM_MUX;
+	dma_buffer->cmd[1].len = 4;
 
-	cmd->cmd = DST_CRCI_NAND_CMD;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.cmd);
-	cmd->dst = NC01(MSM_NAND_FLASH_CMD);
-	cmd->len = 16;
-	cmd++;
+	dma_buffer->cmd[2].cmd = DST_CRCI_NAND_CMD;
+	dma_buffer->cmd[2].src = msm_virt_to_dma(chip, &dma_buffer->data[0]);
+	dma_buffer->cmd[2].dst = NC01(MSM_NAND_FLASH_CMD);
+	dma_buffer->cmd[2].len = 16;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.cfg0);
-	cmd->dst = NC01(MSM_NAND_DEV0_CFG0);
-	cmd->len = 8;
-	cmd++;
+	dma_buffer->cmd[3].cmd = 0;
+	dma_buffer->cmd[3].src = msm_virt_to_dma(chip, &dma_buffer->data[8]);
+	dma_buffer->cmd[3].dst = NC01(MSM_NAND_DEV0_CFG0);
+	dma_buffer->cmd[3].len = 8;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.exec);
-	cmd->dst = NC01(MSM_NAND_EXEC_CMD);
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[4].cmd = 0;
+	dma_buffer->cmd[4].src = msm_virt_to_dma(chip, &dma_buffer->data[5]);
+	dma_buffer->cmd[4].dst = NC01(MSM_NAND_EXEC_CMD);
+	dma_buffer->cmd[4].len = 4;
 
 	/* 0xF28 */
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip,
-			&dma_buffer->data.adm_mux_data_ack_req_nc10);
-	cmd->dst = EBI2_NAND_ADM_MUX;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[5].cmd = 0;
+	dma_buffer->cmd[5].src = msm_virt_to_dma(chip,
+			       &dma_buffer->adm_mux_data_ack_req_nc10);
+	dma_buffer->cmd[5].dst = EBI2_NAND_ADM_MUX;
+	dma_buffer->cmd[5].len = 4;
 
-	cmd->cmd = SRC_CRCI_NAND_DATA;
-	cmd->src = NC01(MSM_NAND_FLASH_STATUS);
-	cmd->dst = msm_virt_to_dma(chip, &dma_buffer->data.flash_status[0]);
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[6].cmd = SRC_CRCI_NAND_DATA;
+	dma_buffer->cmd[6].src = NC01(MSM_NAND_FLASH_STATUS);
+	dma_buffer->cmd[6].dst = msm_virt_to_dma(chip, &dma_buffer->data[6]);
+	dma_buffer->cmd[6].len = 4;
 
 	/* erase CS1 block now !!! */
 	/* 0x53C */
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip,
-			       &dma_buffer->data.adm_mux_cmd_ack_req_nc01);
-	cmd->dst = EBI2_NAND_ADM_MUX;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[7].cmd = 0;
+	dma_buffer->cmd[7].src = msm_virt_to_dma(chip,
+			       &dma_buffer->adm_mux_cmd_ack_req_nc01);
+	dma_buffer->cmd[7].dst = EBI2_NAND_ADM_MUX;
+	dma_buffer->cmd[7].len = 4;
 
-	cmd->cmd = DST_CRCI_NAND_CMD;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.cmd);
-	cmd->dst = NC10(MSM_NAND_FLASH_CMD);
-	cmd->len = 12;
-	cmd++;
+	dma_buffer->cmd[8].cmd = DST_CRCI_NAND_CMD;
+	dma_buffer->cmd[8].src = msm_virt_to_dma(chip, &dma_buffer->data[0]);
+	dma_buffer->cmd[8].dst = NC10(MSM_NAND_FLASH_CMD);
+	dma_buffer->cmd[8].len = 12;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.chipsel_cs1);
-	cmd->dst = NC10(MSM_NAND_FLASH_CHIP_SELECT);
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[9].cmd = 0;
+	dma_buffer->cmd[9].src = msm_virt_to_dma(chip, &dma_buffer->data[4]);
+	dma_buffer->cmd[9].dst = NC10(MSM_NAND_FLASH_CHIP_SELECT);
+	dma_buffer->cmd[9].len = 4;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.cfg0);
-	cmd->dst = NC10(MSM_NAND_DEV1_CFG0);
-	cmd->len = 8;
+	dma_buffer->cmd[10].cmd = 0;
+	dma_buffer->cmd[10].src = msm_virt_to_dma(chip, &dma_buffer->data[8]);
+	dma_buffer->cmd[10].dst = NC10(MSM_NAND_DEV1_CFG0);
+	dma_buffer->cmd[10].len = 8;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.exec);
-	cmd->dst = NC10(MSM_NAND_EXEC_CMD);
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[11].cmd = 0;
+	dma_buffer->cmd[11].src = msm_virt_to_dma(chip, &dma_buffer->data[5]);
+	dma_buffer->cmd[11].dst = NC10(MSM_NAND_EXEC_CMD);
+	dma_buffer->cmd[11].len = 4;
 
 	/* 0xA3C */
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip,
-			     &dma_buffer->data.adm_mux_data_ack_req_nc01);
-	cmd->dst = EBI2_NAND_ADM_MUX;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[12].cmd = 0;
+	dma_buffer->cmd[12].src = msm_virt_to_dma(chip,
+			     &dma_buffer->adm_mux_data_ack_req_nc01);
+	dma_buffer->cmd[12].dst = EBI2_NAND_ADM_MUX;
+	dma_buffer->cmd[12].len = 4;
 
-	cmd->cmd = SRC_CRCI_NAND_DATA;
-	cmd->src = NC10(MSM_NAND_FLASH_STATUS);
-	cmd->dst = msm_virt_to_dma(chip, &dma_buffer->data.flash_status[1]);
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[13].cmd = SRC_CRCI_NAND_DATA;
+	dma_buffer->cmd[13].src = NC10(MSM_NAND_FLASH_STATUS);
+	dma_buffer->cmd[13].dst = msm_virt_to_dma(chip, &dma_buffer->data[7]);
+	dma_buffer->cmd[13].len = 4;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.clrfstatus);
-	cmd->dst = NC11(MSM_NAND_FLASH_STATUS);
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[14].cmd = 0;
+	dma_buffer->cmd[14].src = msm_virt_to_dma(chip, &dma_buffer->data[8]);
+	dma_buffer->cmd[14].dst = NC11(MSM_NAND_FLASH_STATUS);
+	dma_buffer->cmd[14].len = 4;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip, &dma_buffer->data.clrrstatus);
-	cmd->dst = NC11(MSM_NAND_READ_STATUS);
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[15].cmd = 0;
+	dma_buffer->cmd[15].src = msm_virt_to_dma(chip, &dma_buffer->data[9]);
+	dma_buffer->cmd[15].dst = NC11(MSM_NAND_READ_STATUS);
+	dma_buffer->cmd[15].len = 4;
 
-	cmd->cmd = 0;
-	cmd->src = msm_virt_to_dma(chip,
-			&dma_buffer->data.adm_default_mux);
-	cmd->dst = EBI2_NAND_ADM_MUX;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[16].cmd = 0;
+	dma_buffer->cmd[16].src = msm_virt_to_dma(chip,
+			     &dma_buffer->adm_default_mux);
+	dma_buffer->cmd[16].dst = EBI2_NAND_ADM_MUX;
+	dma_buffer->cmd[16].len = 4;
 
 	/* disable CS1 */
-	cmd->cmd = CMD_OCU | CMD_LC;
-	cmd->src = msm_virt_to_dma(chip,
-			&dma_buffer->data.default_ebi2_chip_select_cfg0);
-	cmd->dst = EBI2_CHIP_SELECT_CFG0;
-	cmd->len = 4;
-	cmd++;
+	dma_buffer->cmd[17].cmd = CMD_OCU | CMD_LC;
+	dma_buffer->cmd[17].src = msm_virt_to_dma(chip,
+				&dma_buffer->default_ebi2_chip_select_cfg0);
+	dma_buffer->cmd[17].dst = EBI2_CHIP_SELECT_CFG0;
+	dma_buffer->cmd[17].len = 4;
 
 	BUILD_BUG_ON(17 != ARRAY_SIZE(dma_buffer->cmd) - 1);
-	BUG_ON(cmd - dma_buffer->cmd > ARRAY_SIZE(dma_buffer->cmd));
 
 	dma_buffer->cmdptr =
 		(msm_virt_to_dma(chip, dma_buffer->cmd) >> 3) | CMD_PTR_LP;
@@ -3205,10 +3293,8 @@ msm_nand_erase_dualnandc(struct mtd_info *mtd, struct erase_info *instr)
 	 * erase success bit was not set.
 	 */
 
-	if (dma_buffer->data.flash_status[0] & 0x110 ||
-			!(dma_buffer->data.flash_status[0] & 0x80) ||
-			dma_buffer->data.flash_status[1] & 0x110 ||
-			!(dma_buffer->data.flash_status[1] & 0x80))
+	if (dma_buffer->data[6] & 0x110 || !(dma_buffer->data[6] & 0x80)
+		|| dma_buffer->data[6] & 0x110 || !(dma_buffer->data[6] & 0x80))
 		err = -EIO;
 	else
 		err = 0;
@@ -3266,8 +3352,8 @@ msm_nand_block_isbad(struct mtd_info *mtd, loff_t ofs)
 	if (ofs > mtd->size)
 		return -EINVAL;
 	if (ofs & (mtd->erasesize - 1)) {
-		pr_err("%s: unsupported block address, 0x%x\n",
-			 __func__, (uint32_t)ofs);
+		pr_err("%s: unsupported block address, 0x%x ( & 0x%x )\n",
+			 __func__, (uint32_t)ofs, mtd->erasesize - 1);
 		return -EINVAL;
 	}
 
@@ -3660,6 +3746,121 @@ msm_nand_block_markbad(struct mtd_info *mtd, loff_t ofs)
 	return ret;
 }
 
+int msm_nand_read_dpram(char *mBuf, unsigned size)
+{
+        char spare_buf[128] = { 0, };
+        struct mtd_oob_ops ops = { 0, };
+        unsigned offset = 0;
+
+        if(NULL == current_mtd)
+        {
+                printk("[msm_nand_read_dpram] MTD not initialized\n");
+                return -1;
+        }
+        if(size < current_mtd->writesize)
+        {
+                printk("[msm_nand_read_dpram] given buffer has invalid size\n");
+                return -1;
+        }
+
+        /* needed data is hardcoded at 5th page of the last block */
+        offset = ((5 * current_mtd->writesize) + (current_mtd->erasesize * (((unsigned )current_mtd->size / (unsigned )current_mtd->erasesize) - 1)));
+
+        ops.mode = MTD_OOB_RAW;
+        ops.len = current_mtd->writesize + current_mtd->oobsize;
+        ops.ooblen = current_mtd->oobsize;
+        ops.datbuf = mBuf;
+        ops.oobbuf = spare_buf;
+
+        printk("[msm_nand_read_dpram] number of blocks = %u, offset = %u, page size = %u, block size = %u\n", (unsigned )current_mtd->size / (unsigned )current_mtd->erasesize, offset, current_mtd->writesize, current_mtd->erasesize);
+
+        return msm_nand_read_oob(current_mtd, offset, &ops);
+}
+EXPORT_SYMBOL(msm_nand_read_dpram);
+
+void msm_read_param(char *mBuf)
+{
+	char data_buf[4096] = { 0, };
+	char spare_buf[128] = { 0, };
+	struct mtd_oob_ops ops = { 0, };
+	int data_size = 0;
+
+	if (current_mtd->oobsize == 64) {
+		data_size = 2048;	
+	}
+	else if (current_mtd->oobsize == 128) {
+		data_size = 4096;
+	}
+
+	ops.mode = MTD_OOB_RAW;
+	ops.len = data_size+current_mtd->oobsize;
+	ops.retlen = 0;
+	ops.ooblen = current_mtd->oobsize;
+	ops.datbuf = data_buf;
+	ops.oobbuf = spare_buf;
+
+        /* erasize == size of entire block == page size * pages per block */
+        while(msm_nand_block_isbad(current_mtd, (param_start_block * current_mtd->erasesize)))
+        {
+                printk("msm_read_param: bad block\n");
+                param_start_block++;
+        }
+
+        if ( param_start_block >= param_end_block) {
+                param_start_block = param_end_block - 1;
+                printk("All nand block in param partition has been crashed\n");
+        }
+
+        msm_nand_read_oob(current_mtd, (param_start_block * current_mtd->erasesize), &ops);
+	memcpy(mBuf,data_buf,sizeof(data_buf));
+}
+EXPORT_SYMBOL(msm_read_param);
+
+void msm_write_param(char *mBuf)
+{
+	char data_buf[4096] = { 0, };
+	char spare_buf[128] = { 0, };
+	struct mtd_oob_ops ops = { 0, };
+	struct erase_info *param_erase_info = 0;
+	int data_size = 0;
+
+	if (current_mtd->oobsize == 64) {
+		data_size = 2048;	
+	}
+	else if (current_mtd->oobsize == 128) {
+		data_size = 4096;
+	}
+
+	param_erase_info = kzalloc(sizeof(struct erase_info), GFP_KERNEL);
+        if(0 == param_erase_info)
+        {
+                printk("msm_write_param: memory allocation error\n");
+                return;
+        }
+	param_erase_info->mtd = current_mtd;
+        /* erasize == size of entire block == page size * pages per block */
+	param_erase_info->addr = param_start_block * current_mtd->erasesize;
+	param_erase_info->len = current_mtd->erasesize;
+	if(!msm_nand_erase(current_mtd, param_erase_info)) {
+		pr_info("parameter block erase success\n");
+	}
+
+	memset(spare_buf,0xFF,current_mtd->oobsize);
+	memcpy(data_buf,mBuf,sizeof(data_buf));
+
+	ops.mode = MTD_OOB_RAW;
+	ops.len = data_size+current_mtd->oobsize;
+	ops.retlen = 0;
+	ops.ooblen = current_mtd->oobsize;
+	ops.datbuf = data_buf;
+	ops.oobbuf = spare_buf;
+	
+	msm_nand_write_oob(current_mtd, param_erase_info->addr, &ops);
+
+	kfree(param_erase_info);
+}
+EXPORT_SYMBOL(msm_write_param);
+
 /**
  * msm_nand_suspend - [MTD Interface] Suspend the msm_nand flash
  * @param mtd		MTD device structure
@@ -4001,15 +4202,21 @@ int msm_onenand_read_oob(struct mtd_info *mtd,
 		return -EINVAL;
 	}
 
-	if (ops->oobbuf && !ops->datbuf) {
+	if (ops->oobbuf && !ops->datbuf)
 		page_count = ops->ooblen / ((ops->mode == MTD_OOB_AUTO) ?
 			mtd->oobavail : mtd->oobsize);
-		if ((page_count == 0) && (ops->ooblen))
-			page_count = 1;
-	} else if (ops->mode != MTD_OOB_RAW)
-			page_count = ops->len / mtd->writesize;
-		else
-			page_count = ops->len / (mtd->writesize + mtd->oobsize);
+	else if (ops->mode != MTD_OOB_RAW)
+		page_count = ops->len / mtd->writesize;
+	else
+		page_count = ops->len / (mtd->writesize + mtd->oobsize);
+
+	if ((ops->mode == MTD_OOB_AUTO) && (ops->oobbuf != NULL)) {
+		if (page_count * mtd->oobavail > ops->ooblen) {
+			pr_err("%s: unsupported ops->ooblen for "
+				"AUTO, %d\n", __func__, ops->ooblen);
+			return -EINVAL;
+		}
+	}
 
 	if ((ops->mode == MTD_OOB_PLACE) && (ops->oobbuf != NULL)) {
 		if (page_count * mtd->oobsize > ops->ooblen) {
@@ -4685,15 +4892,13 @@ static int msm_onenand_write_oob(struct mtd_info *mtd, loff_t to,
 		return -EINVAL;
 	}
 
-	if (ops->oobbuf && !ops->datbuf) {
+	if (ops->oobbuf && !ops->datbuf)
 		page_count = ops->ooblen / ((ops->mode == MTD_OOB_AUTO) ?
 			mtd->oobavail : mtd->oobsize);
-		if ((page_count == 0) && (ops->ooblen))
-			page_count = 1;
-	} else if (ops->mode != MTD_OOB_RAW)
-			page_count = ops->len / mtd->writesize;
-		else
-			page_count = ops->len / (mtd->writesize + mtd->oobsize);
+	else if (ops->mode != MTD_OOB_RAW)
+		page_count = ops->len / mtd->writesize;
+	else
+		page_count = ops->len / (mtd->writesize + mtd->oobsize);
 
 	if ((ops->mode == MTD_OOB_AUTO) && (ops->oobbuf != NULL)) {
 		if (page_count > 1) {
@@ -6553,65 +6758,46 @@ int msm_onenand_scan(struct mtd_info *mtd, int maxchips)
 int msm_nand_scan(struct mtd_info *mtd, int maxchips)
 {
 	struct msm_nand_chip *chip = mtd->priv;
-	uint32_t flash_id = 0, i, mtd_writesize;
+	uint32_t flash_id = 0, i = 1, mtd_writesize;
 	uint8_t dev_found = 0;
 	uint8_t wide_bus;
-	uint32_t manid;
-	uint32_t devid;
-	uint32_t devcfg;
-	struct nand_flash_dev *flashdev = NULL;
-	struct nand_manufacturers  *flashman = NULL;
+	uint8_t index;
 
 	/* Probe the Flash device for ONFI compliance */
+#if defined (CONFIG_MACH_COOPER)
+	/* Read the Flash ID from the Nand Flash Device */
+	flash_id = flash_read_id(chip);
+	for (index = 1; index < ARRAY_SIZE(supported_flash); index++)
+		if ((flash_id & supported_flash[index].mask) ==
+		    (supported_flash[index].flash_id &
+		     (supported_flash[index].mask))) {
+			dev_found = 1;
+			break;
+		}
+#else
 	if (!flash_onfi_probe(chip)) {
+		index = 0;
 		dev_found = 1;
 	} else {
 		/* Read the Flash ID from the Nand Flash Device */
 		flash_id = flash_read_id(chip);
-		manid = flash_id & 0xFF;
-		devid = (flash_id >> 8) & 0xFF;
-		devcfg = (flash_id >> 24) & 0xFF;
-
-		for (i = 0; !flashman && nand_manuf_ids[i].id; ++i)
-			if (nand_manuf_ids[i].id == manid)
-				flashman = &nand_manuf_ids[i];
-		for (i = 0; !flashdev && nand_flash_ids[i].id; ++i)
-			if (nand_flash_ids[i].id == devid)
-				flashdev = &nand_flash_ids[i];
-		if (!flashdev || !flashman) {
-			pr_err("ERROR: unknown nand device manuf=%x devid=%x\n",
-				manid, devid);
-			return -ENOENT;
-		} else
-			dev_found = 1;
-
-		if (!flashdev->pagesize) {
-			supported_flash.flash_id = flash_id;
-			supported_flash.density = flashdev->chipsize << 20;
-			supported_flash.widebus = devcfg & (1 << 6) ? 1 : 0;
-			supported_flash.pagesize = 1024 << (devcfg & 0x3);
-			supported_flash.blksize = (64 * 1024) <<
-							((devcfg >> 4) & 0x3);
-			supported_flash.oobsize = (8 << ((devcfg >> 2) & 1)) *
-				(supported_flash.pagesize >> 9);
-		} else {
-			supported_flash.flash_id = flash_id;
-			supported_flash.density = flashdev->chipsize << 20;
-			supported_flash.widebus = flashdev->options &
-					 NAND_BUSWIDTH_16 ? 1 : 0;
-			supported_flash.pagesize = flashdev->pagesize;
-			supported_flash.blksize = flashdev->erasesize;
-			supported_flash.oobsize = flashdev->pagesize >> 5;
-		}
+		for (index = 1; index < ARRAY_SIZE(supported_flash); index++)
+			if ((flash_id & supported_flash[index].mask) ==
+			    (supported_flash[index].flash_id &
+			     (supported_flash[index].mask))) {
+				dev_found = 1;
+				break;
+			}
 	}
+#endif
 
 	if (dev_found) {
 		(!interleave_enable) ? (i = 1) : (i = 2);
-		wide_bus       = supported_flash.widebus;
-		mtd->size      = supported_flash.density  * i;
-		mtd->writesize = supported_flash.pagesize * i;
-		mtd->oobsize   = supported_flash.oobsize  * i;
-		mtd->erasesize = supported_flash.blksize  * i;
+		wide_bus       = supported_flash[index].widebus;
+		mtd->size      = supported_flash[index].density  * i;
+		mtd->writesize = supported_flash[index].pagesize * i;
+		mtd->oobsize   = supported_flash[index].oobsize  * i;
+		mtd->erasesize = supported_flash[index].blksize  * i;
 
 		if (!interleave_enable)
 			mtd_writesize = mtd->writesize;
@@ -6619,8 +6805,9 @@ int msm_nand_scan(struct mtd_info *mtd, int maxchips)
 			mtd_writesize = mtd->writesize >> 1;
 
 		pr_info("Found a supported NAND device\n");
-		pr_info("NAND Id  : 0x%x\n", supported_flash.flash_id);
-		pr_info("Buswidth : %d Bits\n", (wide_bus) ? 16 : 8);
+		pr_info("NAND Id  : 0x%x\n", supported_flash[index].
+			flash_id);
+		pr_info("Buswidth : %d Bits \n", (wide_bus) ? 16 : 8);
 		pr_info("Density  : %lld MByte\n", (mtd->size>>20));
 		pr_info("Pagesize : %d Bytes\n", mtd->writesize);
 		pr_info("Erasesize: %d Bytes\n", mtd->erasesize);
@@ -6646,7 +6833,7 @@ int msm_nand_scan(struct mtd_info *mtd, int maxchips)
 				<<  6)  /* Bad block marker location */
 		|    (0 << 16)  /* Bad block in user data area */
 		|    (2 << 17)  /* 6 cycle tWB/tRB */
-		| ((wide_bus) ? CFG1_WIDE_FLASH : 0); /* Wide flash bit */
+		| (wide_bus << 1); /* Wide flash bit */
 
 	chip->ecc_buf_cfg = 0x203;
 
@@ -6702,6 +6889,16 @@ int msm_nand_scan(struct mtd_info *mtd, int maxchips)
 	/* msm_nand_unlock_all(mtd); */
 
 	/* return this->scan_bbt(mtd); */
+
+	current_mtd = mtd; // for PARAMETER block
+
+	for ( i = 0 ; i < msm_nand_data.nr_parts ; i++) {
+		if (!strcmp(msm_nand_data.parts[i].name , "parameter")) {
+			param_start_block = msm_nand_data.parts[i].offset;		
+			param_end_block = msm_nand_data.parts[i].offset + msm_nand_data.parts[i].size;	// should match with bootloader
+		}
+	}
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(msm_nand_scan);
@@ -6847,12 +7044,16 @@ static int __devinit msm_nand_probe(struct platform_device *pdev)
 		goto no_dual_nand_ctlr_support;
 	ebi2_register_base = res->start;
 
+#if defined (CONFIG_MACH_COOPER)
+	dual_nand_ctlr_present = 0;
+	interleave_enable = 0;
+#else
 	dual_nand_ctlr_present = 1;
 	if (plat_data != NULL)
 		interleave_enable = plat_data->interleave;
 	else
 		interleave_enable = 0;
-
+#endif
 
 	if (!interleave_enable)
 		pr_info("%s: Dual Nand Ctrl in ping-pong mode\n", __func__);
@@ -6899,10 +7100,6 @@ no_dual_nand_ctlr_support:
 	info->mtd.name = dev_name(&pdev->dev);
 	info->mtd.priv = &info->msm_nand;
 	info->mtd.owner = THIS_MODULE;
-
-	/* config ebi2_cfg register only for ping pong mode!!! */
-	if (!interleave_enable && dual_nand_ctlr_present)
-		flash_wr_reg(&info->msm_nand, EBI2_CFG_REG, 0x4010080);
 
 	if (dual_nand_ctlr_present)
 		msm_nand_nc10_xfr_settings(&info->mtd);

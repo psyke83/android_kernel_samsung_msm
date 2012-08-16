@@ -241,12 +241,24 @@ struct msm_snd_endpoint {
 #define SND_AVC_CTL _IOW(SND_IOCTL_MAGIC, 6, unsigned *)
 #define SND_AGC_CTL _IOW(SND_IOCTL_MAGIC, 7, unsigned *)
 
+struct msm_snd_extamp_config {
+ uint32_t device;
+ uint32_t speaker_volume;
+ uint32_t headset_volume;
+};
+
+#define SND_SET_EXTAMP _IOW(SND_IOCTL_MAGIC, 8, struct msm_snd_extamp_config *)
+
 struct msm_audio_pcm_config {
 	uint32_t pcm_feedback;	/* 0 - disable > 0 - enable */
 	uint32_t buffer_count;	/* Number of buffers to allocate */
 	uint32_t buffer_size;	/* Size of buffer for capturing of
 				   PCM samples */
 };
+
+#define SND_SET_MAIN_MIC 	_IOW(SND_IOCTL_MAGIC, 9, int *)
+#define SND_SET_SUB_MIC 	_IOW(SND_IOCTL_MAGIC, 10, int *)
+#define SND_MAX8899_AMP_OFF _IOW(SND_IOCTL_MAGIC, 11, int *)
 
 #define AUDIO_EVENT_SUSPEND 0
 #define AUDIO_EVENT_RESUME 1

@@ -429,7 +429,10 @@ struct usb_gadget_ops {
 	int	(*vbus_draw) (struct usb_gadget *, unsigned mA);
 	int	(*pullup) (struct usb_gadget *, int is_on);
 	int	(*ioctl)(struct usb_gadget *,
-				unsigned code, unsigned long param);
+	unsigned code, unsigned long param);
+#ifdef CONFIG_USB_SAMSUNG_VBUS_CHECK
+	int    (*get_vbus_state)(struct usb_gadget *);
+#endif 
 };
 
 /**

@@ -166,6 +166,7 @@ menuconfig MISC_FILESYSTEMS
 
 if MISC_FILESYSTEMS
 
+#source "fs/rfs/Kconfig"
 source "fs/adfs/Kconfig"
 source "fs/affs/Kconfig"
 source "fs/ecryptfs/Kconfig"

@@ -522,6 +522,61 @@ static ssize_t show_scaling_governor(struct cpufreq_policy *policy, char *buf)
 }
 
 
+
+#if 1//PCAM
+int cpufreq_direct_set_policy(unsigned int cpu, const char *buf)
+{
+	unsigned int ret = -EINVAL;
+	char	str_governor[16];
+	struct cpufreq_policy new_policy;
+	struct cpufreq_policy *cur_policy = cpufreq_cpu_get(cpu);
+
+
+	if(!cur_policy)
+	{
+		printk("<=PCAM=> cur_policy is NULL \n");
+		return ret;
+	}
+
+	if(unlikely(lock_policy_rwsem_write(cpu)))
+	{
+		printk("<=PCAM=> !lock_policy_rwsem_write \n");
+		return ret;
+	}
+
+
+
+	ret = cpufreq_get_policy(&new_policy, cur_policy->cpu);
+	if (ret)
+		return ret;
+
+	ret = sscanf (buf, "%15s", str_governor);
+	if (ret != 1)
+		return -EINVAL;
+
+	if (cpufreq_parse_governor(str_governor, &new_policy.policy,
+						&new_policy.governor))
+		return -EINVAL;
+
+	/* Do not use cpufreq_set_policy here or the user_policy.max
+	   will be wrongly overridden */
+	ret = __cpufreq_set_policy(cur_policy, &new_policy);
+
+	cur_policy->user_policy.policy = cur_policy->policy;
+	cur_policy->user_policy.governor = cur_policy->governor;
+
+	 unlock_policy_rwsem_write(cpu);
+
+	if (ret)
+		return ret;
+	else
+		return 0;
+}
+EXPORT_SYMBOL(cpufreq_direct_set_policy); 
+#endif//PCAM
+
+
+
 /**
  * store_scaling_governor - store policy for the specified CPU
  */

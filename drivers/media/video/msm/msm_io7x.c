@@ -1,3 +1,7 @@
+#if defined(CONFIG_MACH_GIO)
+#include "msm_io7x_gio.c"
+#else
+
 /* Copyright (c) 2009, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -321,3 +325,7 @@ int msm_camio_probe_off(struct platform_device *pdev)
 	camdev->camera_gpio_off();
 	return msm_camio_clk_disable(CAMIO_VFE_CLK);
 }
+
+
+#endif
+

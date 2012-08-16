@@ -814,6 +814,13 @@ struct input_absinfo {
 #define MT_TOOL_FINGER		0
 #define MT_TOOL_PEN		1
 
+
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+#define KERNEL_SEC_FORCED_UPLOAD_1ST_KEY  KEY_VOLUMEUP		/*VOLUME UP KEY*/
+#define KERNEL_SEC_FORCED_UPLOAD_2ND_KEY  KEY_HOME			/*HOME KEY*/
+#endif // CONFIG_KERNEL_DEBUG_SEC
+
+
 /*
  * Values describing the status of a force-feedback effect
  */

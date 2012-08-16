@@ -99,11 +99,21 @@ static void
 msm_i2c_pwr_mgmt(struct msm_i2c_dev *dev, unsigned int state)
 {
 	dev->clk_state = state;
+//	printk("<===PCAM=====> address:%x clk:%x\n", (dev->base+I2C_CLK_CTL), readl(dev->base + I2C_CLK_CTL));
+
 	if (state != 0)
+	{
+		//printk(" <=PCAM=> %s   clk_enable!!!!!\n",__func__);
 		clk_enable(dev->clk);
+	}
 	else
+	{
+		//printk(" <=PCAM=> %s   clk_disable!!!!!\n",__func__);	
 		clk_disable(dev->clk);
 }
+}
+
+
 
 static void
 msm_i2c_pwr_timer(unsigned long data)
@@ -787,6 +797,61 @@ static struct platform_driver msm_i2c_driver = {
 		.owner	= THIS_MODULE,
 	},
 };
+
+
+#if 1//PCAM
+void
+pcam_msm_i2c_pwr_mgmt(struct i2c_adapter *adap, int on)
+{
+//	struct platform_device *pdev = to_platform_device(&msm_i2c_driver); 
+//	struct msm_i2c_dev *dev = platform_get_drvdata(pdev); 
+
+	struct msm_i2c_dev *dev = i2c_get_adapdata(adap);
+
+	//printk("<===PCAM=====> address:%x clk:%x\n", (dev->base+I2C_CLK_CTL), readl(dev->base + I2C_CLK_CTL));
+	if(on)
+	{
+		if (dev->clk_state == 0) 
+		{ 
+			//printk(KERN_WARNING "## [%s:%d] <=PCAM=> clk on,  I2C clock has been off !!\n", __func__, __LINE__); 
+			msm_i2c_pwr_mgmt(dev, 1); 
+		} 
+		
+		/*
+		else  
+			printk(KERN_WARNING "## [%s:%d] <=PCAM=> clk on already, I2C clock has already been on !!\n", __func__, __LINE__); 
+		*/
+	}
+	else
+	{
+		del_timer_sync(&dev->pwr_timer); 
+		if (dev->clk_state != 0) 
+		{ 
+    			//printk(KERN_WARNING "## [%s:%d] <=PCAM=>  clk off, I2C clock hasn't been off !!\n", __func__, __LINE__); 
+			msm_i2c_pwr_mgmt(dev, 0); 
+		} 
+		/*
+		else  
+			printk(KERN_WARNING "## [%s:%d] <=PCAM=>  clk off already, I2C clock has been off !!\n", __func__, __LINE__); 
+		*/
+	}
+
+}
+
+int* get_i2c_clock_addr(struct i2c_adapter *adap)
+{
+	struct msm_i2c_dev *dev = i2c_get_adapdata(adap);
+	
+	return (int*)(dev->base+I2C_CLK_CTL);
+}
+
+EXPORT_SYMBOL(pcam_msm_i2c_pwr_mgmt); 
+EXPORT_SYMBOL(get_i2c_clock_addr); 
+#endif//PCAM
+
+
+
+
 
 /* I2C may be needed to bring up other drivers */
 static int __init

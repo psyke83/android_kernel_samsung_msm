@@ -1,0 +1,2 @@
+make cooper_rev03_purenand_defconfig
+make

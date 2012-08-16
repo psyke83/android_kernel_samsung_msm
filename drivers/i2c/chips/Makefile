@@ -11,6 +11,14 @@
 #
 
 obj-$(CONFIG_SENSORS_MT9T013)	+= mt9t013.o
+obj-$(CONFIG_AMP_MAX97000) 	+= max97000.o
+obj-$(CONFIG_FSA9280) 	+= fsa9280.o
+obj-$(CONFIG_SENSORS_BMA_ACCEL)	+= bma023_dev.o bma_accel_driver.o bma222.o
+obj-$(CONFIG_SENSORS_MMC31XX)	+= mmc31xx.o
+obj-$(CONFIG_ECOMPASS)		+= mecs.o
+obj-$(CONFIG_SENSORS_KR3D_ACCEL)	+= kr3dm_accel_driver.o 
+obj-$(CONFIG_SENSORS_TAOS)	+= taos.o
+obj-$(CONFIG_SENSORS_GP2A)	+= gp2a.o 
 
 ifeq ($(CONFIG_I2C_DEBUG_CHIP),y)
 EXTRA_CFLAGS += -DDEBUG
