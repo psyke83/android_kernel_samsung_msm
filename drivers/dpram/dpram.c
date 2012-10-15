@@ -44,9 +44,9 @@
 
 #ifndef CONFIG_YAFFS_FS
 // DGS
-#include "../fsr/Inc/FSR.h"
-#include "../fsr/Inc/FSR_BML.h"
-#include "../fsr/Inc/FSR_LLD_4K_OneNAND.h"
+#include "../tfsr/Inc/FSR.h"
+#include "../tfsr/Inc/FSR_BML.h"
+#include "../tfsr/Inc/FSR_LLD_4K_OneNAND.h"
 #endif /* CONFIG_YAFFS_FS */
 
 #include "../../arch/arm/mach-msm/smd_private.h"
