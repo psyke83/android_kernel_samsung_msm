@@ -136,6 +136,15 @@ obj-$(CONFIG_FB_MSM_LCDC_QRDC_WXGA) += lcdc_qrdc.o
 obj-$(CONFIG_FB_MSM_HDMI_MSM_PANEL) += hdmi_msm.o
 obj-$(CONFIG_FB_MSM_EXT_INTERFACE_COMMON) += external_common.o
 
+#################################
+# S6D Series lcd driver for MSM #
+#################################
+obj-$(CONFIG_FB_MSM_LCDC_S6D16A0X_HVGA) += lcdc_s6d.o lcdc_s6d_backlight.o
+obj-$(CONFIG_FB_MSM_LCDC_S6D04M0_QVGA) += lcdc_s6d.o
+obj-$(CONFIG_FB_MSM_LCDC_S6D04D1_WQVGA) += lcdc_s6d.o
+obj-$(CONFIG_FB_MSM_LCDC_S6D04H0A_QVGA) += lcdc_s6d.o lcdc_s6d_backlight.o
+obj-$(CONFIG_FB_MSM_LCDC_S6D05A0_WQVGA) += lcdc_s6d.o lcdc_s6d_backlight.o
+
 obj-$(CONFIG_FB_MSM_TVOUT) += tvout_msm.o
 
 obj-$(CONFIG_FB_MSM_EXTMDDI_SVGA) += mddi_ext_lcd.o
