@@ -122,4 +122,5 @@ obj-y				+= ieee802154/
 obj-y				+= clk/
 obj-$(CONFIG_DPRAM)			+= dpram/
 obj-$(CONFIG_RFS_FSR)		+= fsr/
+obj-$(CONFIG_MSM_PARAM)		+= param/
 obj-$(CONFIG_TINY_FSR)		+= tfsr/
