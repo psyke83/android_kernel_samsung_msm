@@ -124,5 +124,7 @@ source "drivers/clk/Kconfig"
 
 source "drivers/dpram/Kconfig"
 
+source "drivers/fsr/Kconfig"
+
 source "drivers/tfsr/Kconfig"
 endmenu
