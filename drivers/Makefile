@@ -120,3 +120,5 @@ obj-y				+= platform/
 obj-y				+= ieee802154/
 #common clk code
 obj-y				+= clk/
+obj-$(CONFIG_DPRAM)			+= dpram/
+obj-$(CONFIG_TINY_FSR)		+= tfsr/
