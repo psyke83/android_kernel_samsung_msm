@@ -353,6 +353,13 @@ config BOARD_REVISION
 	depends on MACH_EUROPA || MACH_CALLISTO || MACH_COOPER || MACH_GIO || MACH_BENI || MACH_TASS || MACH_TASSDT || MACH_LUCAS
 	default "0x01"
 
+config MAX8899_CHARGER
+	bool "MAX8899 PMIC support"
+	depends on MACH_EUROPA || MACH_CALLISTO || MACH_COOPER || MACH_GIO || MACH_BENI || MACH_TASS || MACH_TASSDT || MACH_LUCAS
+	default y
+	help
+	  Add support for MAX8899 power management IC (Samsung msm7x27).
+
 config 800MHZ
 	bool "use 800MHz mode"
 	depends on MACH_COOPER || MACH_GIO
