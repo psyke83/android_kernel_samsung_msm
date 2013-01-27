@@ -67,6 +67,10 @@
  * Debug Definitions
  *****************************************************************************/
 
+#ifdef CONFIG_SAMSUNG_BOARD_REVISION
+int is_modem_reset = 0; //for ramdump issue in factory reset
+#endif
+
 enum {
 	MSM_PM_DEBUG_SUSPEND = 1U << 0,
 	MSM_PM_DEBUG_POWER_COLLAPSE = 1U << 1,
@@ -1720,19 +1724,54 @@ static struct platform_suspend_ops msm_pm_ops = {
 
 static uint32_t restart_reason = 0x776655AA;
 
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS)
+struct smem_info {
+	unsigned int info;
+};
+
+extern struct smem_info *smem_flag;
+extern void request_phone_power_off_reset(int flag);
+int power_off_done;
+int (*set_recovery_mode)(void);
+EXPORT_SYMBOL(set_recovery_mode);
+int (*set_recovery_mode_done)(void);
+EXPORT_SYMBOL(set_recovery_mode_done);
+#endif
+
 static void msm_pm_power_off(void)
 {
 	msm_rpcrouter_close();
+#if !defined(CONFIG_MACH_EUROPA) && !defined(CONFIG_MACH_CALLISTO) && !defined(CONFIG_MACH_COOPER) && !defined(CONFIG_MACH_GIO) && !defined(CONFIG_MACH_BENI) && !defined(CONFIG_MACH_TASS) && !defined(CONFIG_MACH_TASSDT) && !defined(CONFIG_MACH_LUCAS)
 	msm_proc_comm(PCOM_POWER_DOWN, 0, 0);
+#else
+#if defined(CONFIG_RECOVERY_REBOOT) && (defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS))
+	set_recovery_mode_done();
+#endif
+	smem_flag->info = 0x0;
+	printk("request_phone_power_off\n");
+	request_phone_power_off_reset(1);
+	power_off_done = 1;
+	printk("Do Nothing!!\n");
+#endif
 	for (;;)
 		;
 }
 
 static void msm_pm_restart(char str, const char *cmd)
 {
+#ifdef CONFIG_SAMSUNG_BOARD_REVISION
+	is_modem_reset = 1;
+	pr_err("is_modem_reset = %d\n",is_modem_reset);
+#endif
 	msm_rpcrouter_close();
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
+	smem_flag->info = 0x0;
+	printk("send PCOM_RESET_CHIP\n");
+		msm_proc_comm(PCOM_RESET_CHIP_IMM, &restart_reason, 0);
+	printk("Do Nothing!!\n");
+#else
 	msm_proc_comm(PCOM_RESET_CHIP, &restart_reason, 0);
-
+#endif
 	for (;;)
 		;
 }
@@ -1740,20 +1779,43 @@ static void msm_pm_restart(char str, const char *cmd)
 static int msm_reboot_call
 	(struct notifier_block *this, unsigned long code, void *_cmd)
 {
+	printk("msm_reboot_call++\n");
 	if ((code == SYS_RESTART) && _cmd) {
 		char *cmd = _cmd;
 		if (!strcmp(cmd, "bootloader")) {
 			restart_reason = 0x77665500;
 		} else if (!strcmp(cmd, "recovery")) {
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS) 
+			set_recovery_mode();
+#endif
 			restart_reason = 0x77665502;
+#ifdef CONFIG_SAMSUNG_BOARD_REVISION
+		} else if (!strcmp(cmd, "recovery_done")) {
+			printk("recovery_done \n");
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS) 
+			set_recovery_mode_done();
+#endif
+			restart_reason = 0x77665503;
+		} else if (!strcmp(cmd, "download")) {
+			restart_reason = 0x776655FF;
+#endif
 		} else if (!strcmp(cmd, "eraseflash")) {
 			restart_reason = 0x776655EF;
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned code = simple_strtoul(cmd + 4, 0, 16) & 0xff;
 			restart_reason = 0x6f656d00 | code;
 		} else {
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS)
+			set_recovery_mode_done();
+#endif
 			restart_reason = 0x77665501;
 		}
+#ifdef CONFIG_SAMSUNG_BOARD_REVISION
+	} else {
+#if defined(CONFIG_RECOVERY_REBOOT) && (defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS))
+		set_recovery_mode_done();
+#endif
+#endif
 	}
 	return NOTIFY_DONE;
 }
@@ -1780,6 +1842,7 @@ static int __init msm_pm_init(void)
 	struct proc_dir_entry *d_entry;
 #endif
 	int ret;
+	int id = 0;
 #ifdef CONFIG_CPU_V7
 	pgd_t *pc_pgd;
 	pmd_t *pmd;
@@ -1853,6 +1916,10 @@ static int __init msm_pm_init(void)
 		d_entry->write_proc = msm_pm_write_proc;
 		d_entry->data = NULL;
 	}
+#endif
+
+#ifdef CONFIG_SAMSUNG_BOARD_REVISION
+	msm_proc_comm(PCOM_CUSTOMER_CMD3, &id, 0);
 #endif
 
 	return 0;
