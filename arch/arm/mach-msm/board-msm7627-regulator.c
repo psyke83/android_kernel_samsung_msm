@@ -176,6 +176,49 @@ PCOM_VREG_CONSUMERS(ldo17) = {
 	REGULATOR_SUPPLY("msme2",	NULL),
 };
 
+#ifdef CONFIG_MAX8899_CHARGER
+PCOM_VREG_CONSUMERS(maxldo03) = {
+	REGULATOR_SUPPLY("maxldo03",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo04) = {
+	REGULATOR_SUPPLY("maxldo04",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo05) = {
+	REGULATOR_SUPPLY("maxldo05",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo06) = {
+	REGULATOR_SUPPLY("maxldo06",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo12) = {
+	REGULATOR_SUPPLY("maxldo12",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo13) = {
+	REGULATOR_SUPPLY("maxldo13",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo15) = {
+	REGULATOR_SUPPLY("maxldo15",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo16) = {
+	REGULATOR_SUPPLY("maxldo16",	NULL),
+};
+
+
+PCOM_VREG_CONSUMERS(maxldo18) = {
+	REGULATOR_SUPPLY("maxldo18",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo19) = {
+	REGULATOR_SUPPLY("maxldo19",	NULL),
+};
+#endif
+
 /**
  * Minimum and Maximum range for the regulators is as per the
  * device Datasheet. Actual value used by consumer is between
@@ -212,7 +255,18 @@ static struct proccomm_regulator_info msm7627_pcom_vreg_info[] = {
 	PCOM_VREG_LDO(ldo15, 23, NULL,  2600000,  2600000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(ldo16, 22, NULL,  2850000,  3000000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(ldo17,  6, NULL,  1300000,  1300000, 0, -1, 0, 0, 0, 0),
-
+#ifdef CONFIG_MAX8899_CHARGER
+	PCOM_VREG_LDO(maxldo03, 42, NULL,  3000000,  3000000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo04, 43, NULL,  3000000,  3000000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo05, 44, NULL,  1800000,  1800000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo06, 45, NULL,  2600000,  2600000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo12, 51, NULL,  2600000,  2600000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo13, 52, NULL,  3300000,  3300000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo15, 54, NULL,  1800000,  1800000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo16, 55, NULL,  2850000,  3000000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo18, 57, NULL,  3300000,  3300000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo19, 58, NULL,  3300000,  3300000, 0, -1, 0, 0, 0, 0),
+#endif
 };
 
 struct proccomm_regulator_platform_data msm7627_proccomm_regulator_data = {

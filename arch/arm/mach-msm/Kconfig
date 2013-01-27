@@ -374,6 +374,103 @@ config MACH_MSM7201A_FFA
 	help
 	  Support for the Qualcomm MSM7201A FFA eval board.
 
+config MACH_EUROPA
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	depends on MAX8899_CHARGER
+	default n
+	bool "Europa"
+	help
+	  Support for the Samsung Europa board.
+
+config MACH_CALLISTO
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	depends on MAX8899_CHARGER
+	default n
+	bool "Callisto"
+	help
+	  Support for the Samsung Callisto board.
+
+config MACH_COOPER
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	depends on MAX8899_CHARGER
+	default n
+	bool "Cooper"
+	help
+	  Support for the Samsung Cooper board.
+
+config MACH_GIO
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	depends on MAX8899_CHARGER
+	default n
+	bool "Gio"
+	help
+	  Support for the Samsung Gio board.
+
+config MACH_BENI
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	depends on MAX8899_CHARGER
+	default n
+	bool "Beni"
+	help
+	  Support for the Samsung Beni board.
+
+config MACH_TASS
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	depends on MAX8899_CHARGER
+	default n
+	bool "Tass"
+	help
+	  Support for the Samsung Tass board.
+
+config MACH_TASSDT
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	depends on MAX8899_CHARGER
+	default n
+	bool "TassDT"
+	help
+	  Support for the Samsung TassDT board.
+
+config MACH_LUCAS
+	depends on ARCH_MSM7X27
+	depends on !MSM_STACKED_MEMORY
+	depends on MAX8899_CHARGER
+	default n
+	bool "Lucas"
+	help
+	  Support for the Samsung Lucas board.
+
+config SAMSUNG_BOARD_REVISION
+	hex "Select Samsung H/W Revision"
+	depends on MACH_EUROPA || MACH_CALLISTO || MACH_COOPER || MACH_GIO || MACH_BENI || MACH_TASS || MACH_TASSDT || MACH_LUCAS
+	default "0x01"
+
+config MAX8899_CHARGER
+	bool "MAX8899 PMIC support"
+	default n
+	help
+	  Add support for MAX8899 power management IC (Samsung msm7x27).
+
+config RECOVERY_REBOOT
+	bool "Recovery reboot fix for Samsung devices"
+	depends on MACH_EUROPA || MACH_CALLISTO || MACH_COOPER || MACH_GIO || MACH_BENI || MACH_TASS || MACH_TASSDT || MACH_LUCAS
+	default n
+	help
+	  Workaround for recovery looping issue on Samsung msm7x27 devices. Use only for building recovery kernels.
+
+config 800MHZ
+	bool "use 800MHz mode"
+	depends on MACH_COOPER || MACH_GIO
+	default n
+	help
+	  800Mhz support for Samsung MSM7x27T series (cooper, gio).
+
 config MACH_TROUT
 	depends on ARCH_MSM7X01A
 	depends on MSM_STACKED_MEMORY
@@ -724,7 +821,9 @@ config PHYS_OFFSET
 	default "0x80200000" if ARCH_MSM8930
 	default "0x80200000" if ARCH_MSMCOPPER
 	default "0x10000000" if ARCH_FSM9XXX
-	default "0x00200000" if !MSM_STACKED_MEMORY
+	default "0x00200000" if !MSM_STACKED_MEMORY && !MACH_BENI && !MACH_CALLISTO && !MACH_COOPER && !MACH_GIO && !MACH_TASS && !MACH_TASSDT && !MACH_LUCAS && !MACH_EUROPA
+	default "0x13600000" if !MSM_STACKED_MEMORY && ( MACH_BENI || MACH_CALLISTO || MACH_COOPER || MACH_GIO || MACH_TASS || MACH_TASSDT || MACH_LUCAS )
+	default "0x00200000" if !MSM_STACKED_MEMORY && MACH_EUROPA
 	default "0x00000000" if ARCH_QSD8X50 && MSM_SOC_REV_A
 	default "0x20000000" if ARCH_QSD8X50
 	default "0x40200000" if ARCH_MSM8X60
