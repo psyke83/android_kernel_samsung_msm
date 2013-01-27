@@ -376,6 +376,9 @@ static noinline void __init_refok rest_init(void)
 	/* Call into cpu_idle with preempt disabled */
 	cpu_idle();
 }
+#if defined (CONFIG_MSM_ARM9_USES_UART3)
+int arm9_uses_uart3=0;
+#endif
 
 #if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER)  || defined(CONFIG_MACH_GIO)|| defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS)
 unsigned int board_hw_revision;
@@ -388,6 +391,14 @@ char Sales_Code[3];
 static int __init do_early_param(char *param, char *val)
 {
 	const struct obs_kernel_param *p;
+
+#if defined (CONFIG_MSM_ARM9_USES_UART3)
+	if ( (strcmp(param, "console") == 0 )
+		&& (( strcmp(val, "NULL") == 0 )
+			|| (strcmp(val, "null") == 0))
+		)
+		arm9_uses_uart3 = 1;
+#endif
 
 #ifdef CONFIG_SAMSUNG_BOARD_REVISION /* added by gtuo.park for H/W revision */
 #if defined(CONFIG_MACH_EUROPA)
