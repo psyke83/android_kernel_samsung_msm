@@ -785,7 +785,7 @@ void mdp4_dsi_cmd_dma_busy_check(void);
 
 
 
-#ifdef CONFIG_FB_MSM_MIPI_DSI
+#if defined(CONFIG_FB_MSM_MIPI_DSI) || defined(CONFIG_FB_MSM_MDP30)
 void mdp_dsi_cmd_overlay_suspend(struct msm_fb_data_type *mfd);
 int mdp4_dsi_cmd_on(struct platform_device *pdev);
 int mdp4_dsi_cmd_off(struct platform_device *pdev);
@@ -799,7 +799,7 @@ void mdp4_dsi_cmd_pipe_queue(int cndx, struct mdp4_overlay_pipe *pipe);
 void mdp4_dsi_video_pipe_queue(int cndx, struct mdp4_overlay_pipe *pipe);
 void mdp4_dsi_cmd_vsync_ctrl(struct fb_info *info, int enable);
 void mdp4_dsi_video_vsync_ctrl(struct fb_info *info, int enable);
-#ifdef CONFIG_FB_MSM_MDP303
+#if defined(CONFIG_FB_MSM_MDP303) || defined(CONFIG_FB_MSM_MDP30)
 static inline void mdp4_dsi_cmd_del_timer(void)
 {
 	/* empty */
@@ -918,7 +918,7 @@ void mdp4_overlay_status_write(enum mdp4_overlay_status type, bool val);
 bool mdp4_overlay_status_read(enum mdp4_overlay_status type);
 void mdp4_overlay_borderfill_stage_down(struct mdp4_overlay_pipe *pipe);
 
-#ifdef CONFIG_FB_MSM_MDP303
+#if defined(CONFIG_FB_MSM_MDP303) || defined(CONFIG_FB_MSM_MDP30)
 static inline int mdp4_overlay_borderfill_supported(void)
 {
 	return 0;

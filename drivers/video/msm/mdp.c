@@ -1272,7 +1272,7 @@ error:
 }
 #endif
 
-#ifdef CONFIG_FB_MSM_MDP303
+#if defined(CONFIG_FB_MSM_MDP303) || defined(CONFIG_FB_MSM_MDP30)
 /* vsync_isr_handler: Called from isr context*/
 static void vsync_isr_handler(void)
 {
@@ -2091,7 +2091,7 @@ static int mdp_off(struct platform_device *pdev)
 	return ret;
 }
 
-#ifdef CONFIG_FB_MSM_MDP303
+#if defined (CONFIG_FB_MSM_MDP303) || defined (CONFIG_FB_MSM_MDP30)
 unsigned is_mdp4_hw_reset(void)
 {
 	return 0;
@@ -2661,7 +2661,7 @@ static int mdp_probe(struct platform_device *pdev)
 	case HDMI_PANEL:
 	case LCDC_PANEL:
 	case LVDS_PANEL:
-#ifdef CONFIG_FB_MSM_MDP303
+#if defined(CONFIG_FB_MSM_MDP303) || defined(CONFIG_FB_MSM_MDP30)
 		pdata->on = mdp_lcdc_on;
 		pdata->off = mdp_lcdc_off;
 #endif

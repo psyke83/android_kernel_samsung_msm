@@ -620,7 +620,7 @@ extern struct mdp_hist_mgmt *mdp_hist_mgmt_array[];
 #define DMA_IBUF_FORMAT_RGB888              0
 #define DMA_IBUF_FORMAT_xRGB8888_OR_ARGB8888  BIT(26)
 
-#ifdef CONFIG_FB_MSM_MDP303
+#if defined(CONFIG_FB_MSM_MDP303) || defined(CONFIG_FB_MSM_MDP30)
 #define DMA_OUT_SEL_DSI_CMD                  BIT(19)
 #define DMA_OUT_SEL_DSI_VIDEO               (3 << 19)
 #endif
@@ -769,7 +769,7 @@ int mdp_lcdc_on(struct platform_device *pdev);
 int mdp_lcdc_off(struct platform_device *pdev);
 void mdp_lcdc_update(struct msm_fb_data_type *mfd);
 
-#ifdef CONFIG_FB_MSM_MDP303
+#if defined(CONFIG_FB_MSM_MDP303) || defined(CONFIG_FB_MSM_MDP30)
 int mdp_dsi_video_on(struct platform_device *pdev);
 int mdp_dsi_video_off(struct platform_device *pdev);
 void mdp_dsi_video_update(struct msm_fb_data_type *mfd);
@@ -884,7 +884,7 @@ void __mdp_histogram_reset(struct mdp_hist_mgmt *mgmt);
 unsigned int mdp_check_suspended(void);
 void mdp_footswitch_ctrl(boolean on);
 
-#ifdef CONFIG_FB_MSM_MDP303
+#if defined(CONFIG_FB_MSM_MDP303) || defined(CONFIG_FB_MSM_MDP30)
 static inline void mdp4_dsi_cmd_dma_busy_wait(struct msm_fb_data_type *mfd)
 {
 	/* empty */

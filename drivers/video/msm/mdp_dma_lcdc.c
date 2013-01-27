@@ -43,6 +43,10 @@
 
 #define DMA_P_BASE      0x90000
 
+#if defined ( CONFIG_MACH_GIO ) || defined(CONFIG_MACH_COOPER)
+extern int lcd_type_smd;
+#endif
+
 extern spinlock_t mdp_spin_lock;
 #ifndef CONFIG_FB_MSM_MDP40
 extern uint32 mdp_intr_mask;
@@ -292,6 +296,14 @@ int mdp_lcdc_on(struct platform_device *pdev)
 		MDP_OUTP(MDP_BASE + timer_base + 0x38, active_v_end);
 	}
 
+#if defined ( CONFIG_MACH_GIO ) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_CALLISTO)
+	/* enable LCDC block */
+	MDP_OUTP(MDP_BASE + timer_base, 1);
+	mdp_pipe_ctrl(block, MDP_BLOCK_POWER_ON, FALSE);
+	/* MDP cmd block disable */
+	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	ret = panel_next_on(pdev);
+#else
 	ret = panel_next_on(pdev);
 	if (ret == 0) {
 		/* enable LCDC block */
@@ -300,6 +312,9 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	}
 	/* MDP cmd block disable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+#endif
+
+	printk("[HSIL] %s(%d)  mdp_lcdc_on end\n", __func__, __LINE__);
 
 	return ret;
 }
@@ -319,6 +334,12 @@ int mdp_lcdc_off(struct platform_device *pdev)
 		timer_base = DTV_BASE;
 	}
 #endif
+#if defined ( CONFIG_MACH_GIO ) || defined(CONFIG_MACH_COOPER)
+	if( lcd_type_smd )
+		ret = panel_next_off(pdev);
+#elif defined( CONFIG_MACH_CALLISTO )
+		ret = panel_next_off(pdev);
+#endif
 
 	down(&mfd->dma->mutex);
 	/* MDP cmd block enable */
@@ -328,7 +349,14 @@ int mdp_lcdc_off(struct platform_device *pdev)
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 	mdp_pipe_ctrl(block, MDP_BLOCK_POWER_OFF, FALSE);
 
+	printk("[HSIL] %s(%d)  mdp_lcdc_off end\n", __func__, __LINE__);
+
+#if defined ( CONFIG_MACH_GIO ) || defined(CONFIG_MACH_COOPER)
+	if( lcd_type_smd == 0 )
+		ret = panel_next_off(pdev);
+#elif !defined( CONFIG_MACH_CALLISTO )
 	ret = panel_next_off(pdev);
+#endif
 	up(&mfd->dma->mutex);
 	atomic_set(&vsync_cntrl.suspend, 1);
 	atomic_set(&vsync_cntrl.vsync_resume, 0);
