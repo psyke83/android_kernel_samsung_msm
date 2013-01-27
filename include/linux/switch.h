@@ -26,6 +26,9 @@ struct switch_dev {
 
 	ssize_t	(*print_name)(struct switch_dev *sdev, char *buf);
 	ssize_t	(*print_state)(struct switch_dev *sdev, char *buf);
+
+	/* only for MAX8899 headset detect */
+	ssize_t (*set_state)(struct switch_dev *sdev, char *buf);
 };
 
 struct gpio_switch_platform_data {
