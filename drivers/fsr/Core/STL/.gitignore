@@ -1,0 +1,24 @@
+# We're deliberately keeping these .o files, as we don't possess the source
+!FSR_STL_Close.o
+!FSR_STL_Open.o
+!FSR_STL_WriteBufferMgr.o
+!FSR_STL_Read.o
+!FSR_STL_GCMgr.o
+!FSR_STL_Interface.o
+!FSR_STL_Format.o
+!FSR_STL_FlashIO.o
+!FSR_STL_Common.o
+!FSR_STL_MappingMgr.o
+!FSR_STL_MetaMgr.o
+!FSR_STL_Init.o
+!FSR_STL_ZoneMgr.o
+!FSR_STL_Write.o
+!FSR_STL_WearLevelMgr.o
+!FSR_STL_Defragment.o
+!FSR_STL_MergeMgr.o
+!FSR_STL_FreeBlkMgr.o
+!FSR_STL_TblCRC.o
+!FSR_STL_Delete.o
+
+
+

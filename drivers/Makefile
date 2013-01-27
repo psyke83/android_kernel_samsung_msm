@@ -127,4 +127,5 @@ obj-y				+= clk/
 obj-$(CONFIG_HWSPINLOCK)	+= hwspinlock/
 
 obj-$(CONFIG_DPRAM)			+= dpram/
+obj-$(CONFIG_RFS_FSR)		+= fsr/
 obj-$(CONFIG_TINY_FSR)		+= tfsr/
