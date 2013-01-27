@@ -20,6 +20,76 @@
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 #include <linux/wakelock.h>
+#include <mach/gpio.h>
+#include <linux/irq.h>	//hsil
+
+#include <linux/module.h>
+
+//#define AUTO_POWER_ON_OFF_FLAG 1
+
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_GIO)
+unsigned int Volume_Up_irq = 0;
+unsigned int Volume_Down_irq = 0;
+#endif
+
+extern int board_hw_revision;
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO)
+extern void TSP_forced_release_forkey(void);
+#endif
+
+// for COOPER
+#define GPIO_POWERKEY 83
+
+#ifdef CONFIG_MACH_LUCAS
+#define GPIO_KBR6 3	 
+#endif
+
+#if defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
+#define GPIO_KBC0 35
+#endif
+
+#if defined(CONFIG_MACH_CALLISTO)
+// hsil
+#define GPIO_SLIDE	36
+#define GPIO_KBR5	37
+#define GPIO_KBR6	27
+#define GPIO_VOL_UP	76
+#endif
+
+#ifdef AUTO_POWER_ON_OFF_FLAG
+static struct timer_list poweroff_keypad_timer;
+#endif
+
+#if defined(CONFIG_MACH_EUROPA)
+int wlan_debug_step;
+EXPORT_SYMBOL(wlan_debug_step);
+#endif
+
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS)
+int key_pressed;
+extern int power_off_done;
+extern int lcd_on_state_for_debug;
+#ifdef ATH_CLAIM_RELEASE_WAR
+extern void ath_debug_sdio_claimer(void);
+#endif
+#endif
+
+#if defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_CALLISTO)
+int alt_key_pressed = 0;
+#endif
+
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_GIO)
+#if defined(CONFIG_KERNEL_SEC_MMICHECK)
+int mmi_keycode[] = {
+			KEY_BACK, KEY_HOME, KEY_MENU, KEY_POWER, KEY_VOLUMEUP, KEY_VOLUMEDOWN,
+			KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_A,
+			KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_M, KEY_Z, KEY_X,
+			KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, KEY_OK, KEY_BACKSPACE, KEY_COMMA, KEY_LEFTSHIFT, 214,
+			KEY_ENTER, KEY_RIGHT, KEY_LEFT, KEY_UP, KEY_DOWN, KEY_LEFTALT, 223, KEY_MAIL, KEY_SEARCH,
+			KEY_COMMA, KEY_SPACE, 231, 228
+	};
+#endif
+#endif
 
 struct gpio_kp {
 	struct gpio_event_input_devs *input_devs;
@@ -34,6 +104,24 @@ struct gpio_kp {
 	unsigned int disabled_irq:1;
 	unsigned long keys_pressed[0];
 };
+
+// hsil
+int enter_suspend;
+EXPORT_SYMBOL(enter_suspend);
+
+#ifdef AUTO_POWER_ON_OFF_FLAG
+static void poweroff_keypad_timer_handler(unsigned long data)
+{
+	struct gpio_kp *kp = (struct gpio_kp *)data;
+	struct gpio_event_matrix_info *mi = kp->keypad_info;
+	unsigned short keyentry = mi->keymap[0];
+	unsigned short dev = keyentry >> MATRIX_CODE_BITS;
+
+	printk("force to power off + \n");
+	input_report_key(kp->input_devs->dev[dev], KEY_END, 1);
+	printk("force to power off - \n");
+}
+#endif
 
 static void clear_phantom_key(struct gpio_kp *kp, int out, int in)
 {
@@ -103,7 +191,8 @@ static void remove_phantom_keys(struct gpio_kp *kp)
 		}
 	}
 }
-
+// hsil
+int volup_cnt = 0;
 static void report_key(struct gpio_kp *kp, int key_index, int out, int in)
 {
 	struct gpio_event_matrix_info *mi = kp->keypad_info;
@@ -114,18 +203,78 @@ static void report_key(struct gpio_kp *kp, int key_index, int out, int in)
 
 	if (pressed != test_bit(keycode, kp->input_devs->dev[dev]->key)) {
 		if (keycode == KEY_RESERVED) {
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+#if defined(CONFIG_MACH_EUROPA)
+			if ((mi->flags & GPIOKPF_PRINT_UNMAPPED_KEYS) && (board_hw_revision < 4))
+#elif defined(CONFIG_MACH_CALLISTO)
+			if ((mi->flags & GPIOKPF_PRINT_UNMAPPED_KEYS) && (board_hw_revision < 3))
+#else
 			if (mi->flags & GPIOKPF_PRINT_UNMAPPED_KEYS)
+#endif			
 				pr_info("gpiomatrix: unmapped key, %d-%d "
 					"(%d-%d) changed to %d\n",
 					out, in, mi->output_gpios[out],
 					mi->input_gpios[in], pressed);
+#endif			
 		} else {
+#ifdef CONFIG_KERNEL_DEBUG_SEC
 			if (mi->flags & GPIOKPF_PRINT_MAPPED_KEYS)
 				pr_info("gpiomatrix: key %x, %d-%d (%d-%d) "
 					"changed to %d\n", keycode,
 					out, in, mi->output_gpios[out],
 					mi->input_gpios[in], pressed);
+#endif			
+
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO)  || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO)
+			if(!power_off_done) {
+
+#if defined(CONFIG_MACH_CALLISTO)
+				if ((keycode == KEY_LEFTALT) && pressed)
+					alt_key_pressed = 1;
+				if ((keycode == KEY_LEFTALT) && !pressed)
+					alt_key_pressed = 0;
+
+				if ((alt_key_pressed) && (keycode == KEY_LEFT))
+					printk("key (Alt + Down) pressed\n");
+				else if ((alt_key_pressed) && (keycode == KEY_RIGHT))
+					printk("key (Alt + Up) pressed\n");
+				else
+				{	
+#endif
 			input_report_key(kp->input_devs->dev[dev], keycode, pressed);
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO)
+				if(keycode == KEY_HOME && pressed == 1)
+					TSP_forced_release_forkey();
+#endif
+#if defined(CONFIG_MACH_CALLISTO)  || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_GIO)
+//#ifdef CONFIG_KERNEL_DEBUG_SEC
+//				printk("key event (keycode:%d, pressed:%d), w=%d\n", 
+//						keycode, pressed, lcd_on_state_for_debug);	// sec: sm.kim
+//#endif
+
+#ifdef ATH_CLAIM_RELEASE_WAR
+				if(!lcd_on_state_for_debug) 
+				    ath_debug_sdio_claimer();
+#endif
+#else
+				printk("key event (keycode:%d, pressed:%d), wlan_debug_step=%d\n", 
+						keycode, pressed, wlan_debug_step);	// sec: sm.kim
+#endif
+#if defined(CONFIG_MACH_CALLISTO)
+				}
+#endif
+				key_pressed = pressed;
+			} else {
+				printk("power_off_done : %d\n", power_off_done);
+			}
+#else
+			input_report_key(kp->input_devs->dev[dev], keycode, pressed);
+//			printk("key event (keycode:%d, pressed:%d), wlan_debug_step=%d\n", 
+//					keycode, pressed, wlan_debug_step);	// sec: sm.kim
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+			printk("key event (keycode:%d, pressed:%d)\n", keycode, pressed);	//sec: sm.kim
+#endif
+#endif
 		}
 	}
 }
@@ -222,6 +371,46 @@ static enum hrtimer_restart gpio_keypad_timer_func(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
+
+// for COOPER
+static irqreturn_t gpiokey_irq_handler(int irq_in, void *dev_id)
+{
+	unsigned int key_status;
+	struct gpio_kp *kp = dev_id;
+	struct gpio_event_matrix_info *mi = kp->keypad_info;
+	unsigned short keyentry = mi->keymap[0];
+	unsigned short dev = keyentry >> MATRIX_CODE_BITS;
+
+	key_status = gpio_get_value(GPIO_POWERKEY);
+
+	if(!power_off_done) {
+		if(key_status == 0) // 0 : press
+		{
+			input_report_key(kp->input_devs->dev[dev], KEY_END, 1);
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+//			printk("key event (keycode:%d, pressed:%d)\n", KEY_END, 1);	//sec: sm.kim
+#endif			
+			key_pressed = 1;
+		}
+		else if (key_status == 1) // 1 : release
+		{
+			input_report_key(kp->input_devs->dev[dev], KEY_END, 0);
+#ifdef CONFIG_KERNEL_DEBUG_SEC
+//			printk("key event (keycode:%d, pressed:%d)\n", KEY_END, 0); //sec: sm.kim
+#endif
+			key_pressed = 0;
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO)
+			TSP_forced_release_forkey();
+#endif
+		}
+	}
+	else
+		printk("power_off_done : %d\n", power_off_done);
+
+	return IRQ_HANDLED;
+
+}
+
 static irqreturn_t gpio_keypad_irq_handler(int irq_in, void *dev_id)
 {
 	int i;
@@ -250,6 +439,26 @@ static irqreturn_t gpio_keypad_irq_handler(int irq_in, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+#if defined(CONFIG_MACH_CALLISTO)
+// hsil
+static irqreturn_t slide_int_handler(int irq, void *dev_id)
+{
+	struct gpio_kp *kp = dev_id;
+	int state;
+	struct gpio_event_matrix_info *mi = kp->keypad_info;
+	unsigned short keyentry = mi->keymap[0];
+	unsigned short dev = keyentry >> MATRIX_CODE_BITS;
+			 
+	state = gpio_get_value(GPIO_SLIDE) ^ 1;
+//	printk("[SLIDE] changed Slide state (%d)\n", state);
+
+	input_report_switch(kp->input_devs->dev[dev], SW_LID, state);
+	input_sync(kp->input_devs->dev[dev]);
+	
+	return IRQ_HANDLED;
+}
+#endif
+
 static int gpio_keypad_request_irqs(struct gpio_kp *kp)
 {
 	int i;
@@ -277,6 +486,28 @@ static int gpio_keypad_request_irqs(struct gpio_kp *kp)
 		err = irq = gpio_to_irq(mi->input_gpios[i]);
 		if (err < 0)
 			goto err_gpio_get_irq_num_failed;
+
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO)
+		switch(mi->input_gpios[i])
+		{
+			case 41:
+				Volume_Up_irq = irq;
+				break;
+				
+			case 42:
+				Volume_Down_irq = irq;
+				break;
+		}
+#endif		
+#if defined(CONFIG_MACH_LUCAS)
+		switch(mi->input_gpios[i])
+		{
+			case 3:
+				Volume_Up_irq = irq;
+				Volume_Down_irq = irq;
+				break;
+		}
+#endif		
 		err = request_irq(irq, gpio_keypad_irq_handler, request_flags,
 				  "gpio_kp", kp);
 		if (err) {
@@ -284,17 +515,81 @@ static int gpio_keypad_request_irqs(struct gpio_kp *kp)
 				"irq %d\n", mi->input_gpios[i], irq);
 			goto err_request_irq_failed;
 		}
+#if !defined(CONFIG_MACH_LUCAS) || !defined(CONFIG_MACH_CALLISTO)/*&& !defined(CONFIG_MACH_TASS) */
+//#ifndef CONFIG_MACH_LUCAS
 		err = enable_irq_wake(irq);
 		if (err) {
 			pr_err("gpiomatrix: set_irq_wake failed for input %d, "
 				"irq %d\n", mi->input_gpios[i], irq);
 		}
+#endif		
 		disable_irq(irq);
 		if (kp->disabled_irq) {
 			kp->disabled_irq = 0;
 			enable_irq(irq);
 		}
 	}
+/*
+#if defined(CONFIG_MACH_TASS) 
+	err = enable_irq_wake(gpio_to_irq(GPIO_KBC0));
+	if (err) 
+	{
+		pr_err("gpiomatrix: set_irq_wake failed for input %d, "	"irq %d\n", GPIO_KBC0, irq);
+	}
+#endif
+*/
+#if defined (CONFIG_MACH_LUCAS)
+	err = enable_irq_wake(gpio_to_irq(GPIO_KBR6));
+	if (err) 
+	{
+		pr_err("gpiomatrix: set_irq_wake failed for input %d, "	"irq %d\n", mi->input_gpios[i], irq);
+	}
+#elif defined (CONFIG_MACH_CALLISTO)
+	err = enable_irq_wake(gpio_to_irq(GPIO_KBR5), 1);	// hsil
+	err = enable_irq_wake(gpio_to_irq(GPIO_KBR6), 1);	// hsil
+	err = enable_irq_wake(gpio_to_irq(GPIO_VOL_UP), 1);	// hsil
+#endif
+	
+//#ifndef CONFIG_MACH_LUCAS
+#if defined (CONFIG_MACH_CALLISTO)
+	// hsil
+	irq_set_irq_type(gpio_to_irq(GPIO_SLIDE), IRQ_TYPE_EDGE_BOTH); //check
+	err = request_irq(gpio_to_irq(GPIO_SLIDE), slide_int_handler, IRQF_DISABLED, "slide_kp", kp);
+	if (err)
+	{
+		printk("[SLIDE] request_irq failed for slide\n");
+		goto err_request_irq_failed;
+	}
+	
+	err = enable_irq_wake(gpio_to_irq(GPIO_SLIDE));
+	if (err) 
+		printk("[SLIDE] register wakeup source failed\n");
+#else
+	// for COOPER
+	err = irq = gpio_to_irq(GPIO_POWERKEY);
+	if (err < 0)
+		goto err_gpio_get_irq_num_failed;
+	irq_set_irq_type(irq, IRQ_TYPE_EDGE_BOTH);
+	err = request_irq(irq, gpiokey_irq_handler, IRQF_DISABLED, "gpio_key", kp);
+	if (err)
+	{
+		printk("[PWRKEY] request_irq failed for slide\n");
+		goto err_request_irq_failed;
+	}
+	
+	err = enable_irq_wake(irq);
+	if (err) 
+		printk("[PWRKEY] register wakeup source failed\n");
+
+#ifdef AUTO_POWER_ON_OFF_FLAG
+	init_timer(&poweroff_keypad_timer);
+	poweroff_keypad_timer.function = poweroff_keypad_timer_handler;
+	poweroff_keypad_timer.data = (unsigned long)kp;
+	poweroff_keypad_timer.expires = jiffies + 60*HZ;
+
+	add_timer(&poweroff_keypad_timer);
+#endif
+#endif
 	return 0;
 
 	for (i = mi->noutputs - 1; i >= 0; i--) {
@@ -329,6 +624,25 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 			pr_err("gpiomatrix: Incomplete pdata\n");
 			goto err_invalid_platform_data;
 		}
+		printk("[%s:%d] hw rev = %d\n", __func__, __LINE__, board_hw_revision);
+
+#if defined(CONFIG_MACH_EUROPA)
+		if(board_hw_revision >= 3)
+		{
+			mi->keymap[(0)*mi->ninputs + (1)] = KEY_RESERVED;
+			mi->keymap[(3)*mi->ninputs + (1)] = KEY_VOLUMEDOWN;
+			mi->keymap[(3)*mi->ninputs + (4)] = KEY_VOLUMEUP;
+
+			if(board_hw_revision >= 4)
+			{
+				mi->input_gpios[4] = 76;
+			}
+		}
+#endif
+#if defined(CONFIG_MACH_CALLISTO)
+		// hsil
+		input_set_capability(input_devs->dev[0], EV_SW, SW_LID);
+#endif
 		key_count = mi->ninputs * mi->noutputs;
 
 		*data = kp = kzalloc(sizeof(*kp) + sizeof(kp->keys_pressed[0]) *
@@ -355,7 +669,14 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 				input_set_capability(input_devs->dev[dev],
 							EV_KEY, keycode);
 		}
+		input_set_capability(input_devs->dev[0],EV_KEY, KEY_END); // for COOPER
 
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_GIO)
+#if defined(CONFIG_KERNEL_SEC_MMICHECK)
+		for(i = 0 ; i < ARRAY_SIZE(mmi_keycode) ; i++)
+			input_set_capability(input_devs->dev[0],EV_KEY, mmi_keycode[i]); // for COOPER			
+#endif
+#endif
 		for (i = 0; i < mi->noutputs; i++) {
 			err = gpio_request(mi->output_gpios[i], "gpio_kp_out");
 			if (err) {
@@ -394,6 +715,21 @@ int gpio_event_matrix_func(struct gpio_event_input_devs *input_devs,
 				goto err_gpio_direction_input_failed;
 			}
 		}
+		
+		// for COOPER
+		err = gpio_request(GPIO_POWERKEY, "gpio_powerkey");
+		if (err) {
+			pr_err("gpiomatrix: gpio_request failed for "
+				"input GPIO_POWERKEY %d\n", GPIO_POWERKEY);
+			goto err_request_input_gpio_failed;
+		}
+		err = gpio_direction_input(GPIO_POWERKEY);
+		if (err) {
+			pr_err("gpiomatrix: gpio_direction_input failed"
+				" for input GPIO_POWERKEY %d\n", GPIO_POWERKEY);
+			goto err_gpio_direction_input_failed;
+		}
+
 		kp->current_output = mi->noutputs;
 		kp->key_state_changed = 1;
 
