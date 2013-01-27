@@ -36,7 +36,9 @@ obj-$(CONFIG_CHARGER_ISP1704)	+= isp1704_charger.o
 obj-$(CONFIG_CHARGER_MAX8903)	+= max8903_charger.o
 obj-$(CONFIG_CHARGER_TWL4030)	+= twl4030_charger.o
 obj-$(CONFIG_CHARGER_GPIO)	+= gpio-charger.o
+ifeq ($(CONFIG_MAX8899_CHARGER),)
 obj-$(CONFIG_BATTERY_MSM)       += msm_battery.o
+endif
 obj-$(CONFIG_BATTERY_MSM8X60)   += msm_charger.o
 obj-$(CONFIG_PM8058_CHARGER)    += pmic8058-charger.o
 obj-$(CONFIG_ISL9519_CHARGER)   += isl9519q.o
@@ -49,3 +51,27 @@ obj-$(CONFIG_PM8XXX_CCADC)	+= pm8xxx-ccadc.o
 obj-$(CONFIG_PM8921_BMS)	+= pm8921-bms.o
 obj-$(CONFIG_PM8921_CHARGER)	+= pm8921-charger.o
 obj-$(CONFIG_LTC4088_CHARGER)	+= ltc4088-charger.o
+ifeq ($(CONFIG_MACH_EUROPA),y)
+obj-$(CONFIG_BATTERY_MSM)	+= europa_battery.o
+endif
+ifeq ($(CONFIG_MACH_COOPER),y)
+obj-$(CONFIG_BATTERY_MSM)	+= cooper_battery.o
+endif
+ifeq ($(CONFIG_MACH_GIO),y)
+obj-$(CONFIG_BATTERY_MSM)	+= gio_battery.o
+endif
+ifeq ($(CONFIG_MACH_BENI),y)
+obj-$(CONFIG_BATTERY_MSM)	+= beni_battery.o
+endif
+ifeq ($(CONFIG_MACH_TASS),y)
+obj-$(CONFIG_BATTERY_MSM)	+= tass_battery.o
+endif
+ifeq ($(CONFIG_MACH_TASSDT),y)
+obj-$(CONFIG_BATTERY_MSM)	+= tassdt_battery.o
+endif
+ifeq ($(CONFIG_MACH_LUCAS),y)
+obj-$(CONFIG_BATTERY_MSM)	+= lucas_battery.o
+endif
+ifeq ($(CONFIG_MACH_CALLISTO),y)
+obj-$(CONFIG_BATTERY_MSM)	+= callisto_battery.o
+endif
