@@ -153,7 +153,11 @@ obj-$(CONFIG_MSM_SPM_V1) += spm.o
 obj-$(CONFIG_MSM_SPM_V2) += spm-v2.o spm_devices.o
 
 obj-$(CONFIG_MSM_DMA_TEST) += dma_test.o
-obj-$(CONFIG_SURF_FFA_GPIO_KEYPAD) += keypad-surf-ffa.o
+ifndef CONFIG_SAMSUNG_BOARD_REVISION
+	obj-$(CONFIG_SURF_FFA_GPIO_KEYPAD) += keypad-surf-ffa.o
+else
+	obj-$(CONFIG_SURF_FFA_GPIO_KEYPAD) += keypad-samsung-msm7x27.o
+endif
 
 obj-$(CONFIG_ARCH_MSM7X01A) += board-halibut.o devices-msm7x01a.o clock-pcom-lookup.o
 obj-$(CONFIG_MACH_TROUT) += board-trout.o board-trout-gpio.o
