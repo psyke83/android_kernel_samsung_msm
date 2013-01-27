@@ -570,6 +570,13 @@ config TSPP
 	processing of MPEG transport streams from the main processor.
 	This can also be compiled as a loadable module.
 
+config SAMSUNG_JACK
+	bool "3.5 PI EAR_JACK driver for Samsung devices"
+	depends on INPUT
+	default n
+	---help---
+	  This is 3.5 PI EAR_JACK driver for Samsung devices.
+
 config HAPTIC_ISA1200
 	tristate "ISA1200 haptic support"
 	depends on I2C
