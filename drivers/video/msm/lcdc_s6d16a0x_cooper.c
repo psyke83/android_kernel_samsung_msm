@@ -59,7 +59,7 @@
 #include <linux/clk.h>
 #include <mach/gpio.h>
 #include "msm_fb.h"
-#include <mach/regulator.h>
+//#include <mach/regulator.h>
 #include "lcdc_s6d_backlight.h"
 
 #include <linux/module.h>
@@ -616,6 +616,7 @@ static void spi_init(void)
 #define REGULATOR_ENABLE	1
 #define REGULATOR_DISABLE	0
 
+#if 0
 static void s6d16a0x_regulator_config(int regulator_en)
 {
 	int rc;
@@ -654,14 +655,14 @@ static void s6d16a0x_regulator_config(int regulator_en)
 		}
 	}
 }
-
+#endif
 static void s6d16a0x_disp_powerup(void)
 {
 	DPRINT("start %s\n", __func__);	
 
 	if (!s6d16a0x_state.disp_powered_up && !s6d16a0x_state.display_on) {
 
-		s6d16a0x_regulator_config(REGULATOR_ENABLE);
+		//s6d16a0x_regulator_config(REGULATOR_ENABLE);
 
 		if(!display_init)
 			mdelay(1);
@@ -693,7 +694,7 @@ static void s6d16a0x_disp_powerdown(void)
 	gpio_set_value(lcd_reset, 0);
 	}
 
-	s6d16a0x_regulator_config(REGULATOR_DISABLE);
+	//s6d16a0x_regulator_config(REGULATOR_DISABLE);
 	msleep(1);
 
 	s6d16a0x_state.disp_powered_up = FALSE;
@@ -875,7 +876,7 @@ static DEVICE_ATTR(lcd_power, 0660,						//sm.kim: give write permission for app
                         s6d16a0x_store_lcd_power);
 #endif
 
-static int __init s6d16a0x_probe(struct platform_device *pdev)
+static int __devinit s6d16a0x_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	unsigned char data[4] = {0, };
