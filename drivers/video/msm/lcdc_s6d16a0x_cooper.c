@@ -63,14 +63,16 @@
 #include "lcdc_s6d_backlight.h"
 
 #include <linux/module.h>
+#include <linux/regulator/consumer.h>
 
 #define LCDC_DEBUG
 
 #ifdef LCDC_DEBUG
 #define DPRINT(x...)	printk("s6d16a0x_COOPER " x)
 #else
-#define DPRINT(x...)	
+#define DPRINT(x...)
 #endif
+
 #define __LCD_CONTROL_BY_FILE__ /* for Wifi test mode */
 #define GPIO_LCD_DET	94
 
@@ -657,7 +659,7 @@ static void s6d16a0x_regulator_config(int regulator_en)
 
 static void s6d16a0x_disp_powerup(void)
 {
-	DPRINT("start %s\n", __func__);	
+	DPRINT("start %s\n", __func__);
 
 	if (!s6d16a0x_state.disp_powered_up && !s6d16a0x_state.display_on) {
 
@@ -686,7 +688,7 @@ static void s6d16a0x_disp_powerup(void)
 
 static void s6d16a0x_disp_powerdown(void)
 {
-	DPRINT("start %s\n", __func__);	
+	DPRINT("start %s\n", __func__);
 	if( lcd_type_smd == 0 )
 	{
 	gpio_tlmm_config(GPIO_CFG(lcd_reset, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
