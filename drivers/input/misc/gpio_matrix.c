@@ -239,12 +239,13 @@ static void report_key(struct gpio_kp *kp, int key_index, int out, int in)
 				else if ((alt_key_pressed) && (keycode == KEY_RIGHT))
 					printk("key (Alt + Up) pressed\n");
 				else
-				{	
+				{
 #endif
 			input_report_key(kp->input_devs->dev[dev], keycode, pressed);
-#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO)
-				if(keycode == KEY_HOME && pressed == 1)
+#if defined(CONFIG_TOUCHSCREEN_SAMSUNG_SYNAPTICS_I2C_RMI4) && (defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO))
+				if(keycode == KEY_HOME && pressed == 1) {
 					TSP_forced_release_forkey();
+				}
 #endif
 #if defined(CONFIG_MACH_CALLISTO)  || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS) || defined(CONFIG_MACH_GIO)
 //#ifdef CONFIG_KERNEL_DEBUG_SEC
@@ -399,7 +400,7 @@ static irqreturn_t gpiokey_irq_handler(int irq_in, void *dev_id)
 //			printk("key event (keycode:%d, pressed:%d)\n", KEY_END, 0); //sec: sm.kim
 #endif
 			key_pressed = 0;
-#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO)
+#if defined(CONFIG_TOUCHSCREEN_SAMSUNG_SYNAPTICS_I2C_RMI4) && (defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_GIO))
 			TSP_forced_release_forkey();
 #endif
 		}
