@@ -63,14 +63,16 @@
 #include "lcdc_s6d_backlight.h"
 
 #include <linux/module.h>
+#include <linux/regulator/consumer.h>
 
 #define LCDC_DEBUG
 
 #ifdef LCDC_DEBUG
 #define DPRINT(x...)	printk("s6d16a0x_COOPER " x)
 #else
-#define DPRINT(x...)	
+#define DPRINT(x...)
 #endif
+
 #define __LCD_CONTROL_BY_FILE__ /* for Wifi test mode */
 #define GPIO_LCD_DET	94
 
@@ -616,7 +618,6 @@ static void spi_init(void)
 #define REGULATOR_ENABLE	1
 #define REGULATOR_DISABLE	0
 
-#if 0
 static void s6d16a0x_regulator_config(int regulator_en)
 {
 	int rc;
@@ -634,7 +635,7 @@ static void s6d16a0x_regulator_config(int regulator_en)
 			return;
 		}
 
-		rc = regulator_set_voltage(regulator_lcd, 3000000);
+		rc = regulator_set_voltage(regulator_lcd, 3000000, 3000000);
 		if (rc) {
 			printk(KERN_ERR "%s: LCD set_voltage failed (%d)\n",
 				__func__, rc);
@@ -655,14 +656,14 @@ static void s6d16a0x_regulator_config(int regulator_en)
 		}
 	}
 }
-#endif
+
 static void s6d16a0x_disp_powerup(void)
 {
-	DPRINT("start %s\n", __func__);	
+	DPRINT("start %s\n", __func__);
 
 	if (!s6d16a0x_state.disp_powered_up && !s6d16a0x_state.display_on) {
 
-		//s6d16a0x_regulator_config(REGULATOR_ENABLE);
+		s6d16a0x_regulator_config(REGULATOR_ENABLE);
 
 		if(!display_init)
 			mdelay(1);
@@ -687,14 +688,14 @@ static void s6d16a0x_disp_powerup(void)
 
 static void s6d16a0x_disp_powerdown(void)
 {
-	DPRINT("start %s\n", __func__);	
+	DPRINT("start %s\n", __func__);
 	if( lcd_type_smd == 0 )
 	{
 	gpio_tlmm_config(GPIO_CFG(lcd_reset, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
 	gpio_set_value(lcd_reset, 0);
 	}
 
-	//s6d16a0x_regulator_config(REGULATOR_DISABLE);
+	s6d16a0x_regulator_config(REGULATOR_DISABLE);
 	msleep(1);
 
 	s6d16a0x_state.disp_powered_up = FALSE;
