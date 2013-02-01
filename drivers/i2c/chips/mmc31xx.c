@@ -715,8 +715,9 @@ int mmc31xx_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	mmc31xx_regulator = regulator_get(0, "maxldo04");
 #else
 	mmc31xx_regulator = regulator_get(0, "maxldo03");
-#endif		
-		
+#endif
+	regulator_set_voltage(mmc31xx_regulator, 3000000, 3000000);
+
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		pr_err("%s: functionality check failed\n", __FUNCTION__);
 		res = -ENODEV;
@@ -834,7 +835,8 @@ static int mmc31xx_suspend(struct i2c_client *client, pm_message_t mesg)
 	mmc31xx_regulator = regulator_get(0, "maxldo04");		
 #else
 	mmc31xx_regulator = regulator_get(0, "maxldo03");
-#endif	
+#endif
+	regulator_set_voltage(mmc31xx_regulator, 3000000, 3000000);
 
 #if defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
 	if(board_hw_revision < 2) {
@@ -880,10 +882,11 @@ static int mmc31xx_resume(struct i2c_client *client)
 	mmc31xx_regulator = regulator_get(0, "maxldo04");		
 #else
 	mmc31xx_regulator = regulator_get(0, "maxldo03");
-#endif	
+#endif
+	regulator_set_voltage(mmc31xx_regulator, 3000000, 3000000);
 
 #if defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
-	if(board_hw_revision < 2) {	
+	if(board_hw_revision < 2) {
 		if(regulator_enable(mmc31xx_regulator))
 			printk(KERN_ERR "regulator_enable: VLCD_3.0V regulator operation failed\n");
 	}

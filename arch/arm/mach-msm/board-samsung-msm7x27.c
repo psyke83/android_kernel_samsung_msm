@@ -778,8 +778,9 @@ static char *msm_fb_lcdc_vreg_rev02[] = {
 
 #define MSM_FB_LCDC_VREG_OP(name, op) \
 do { \
-	regulator = regulator_get(0, name); \
-	if (regulator_##op(regulator)) \
+	reg_lcdc = regulator_get(0, name); \
+	regulator_set_voltage(reg_lcdc, 3000000, 3000000); \
+	if (regulator_##op(reg_lcdc)) \
 		printk(KERN_ERR "%s: %s regulator operation failed \n", \
 			(regulator_##op == regulator_enable) ? "regulator_enable" \
 				: "regulator_disable", name); \
@@ -787,7 +788,7 @@ do { \
 
 static int msm_fb_lcdc_power_save(int on) {
 #if !defined(CONFIG_MACH_COOPER) && !defined(CONFIG_MACH_GIO)
-	struct regulator *regulator;
+	static struct regulator *reg_lcdc;
 	int i;
 	int array_size = 0;
 
@@ -801,7 +802,6 @@ static int msm_fb_lcdc_power_save(int on) {
 	for (i = 0; i < array_size; i++) {
 		if (on) {
 			MSM_FB_LCDC_VREG_OP(msm_fb_lcdc_vreg[i], enable);
-			regulator_set_voltage(regulator, 3000000, 3000000);
 		} else {
 			MSM_FB_LCDC_VREG_OP(msm_fb_lcdc_vreg[i], disable);
 
