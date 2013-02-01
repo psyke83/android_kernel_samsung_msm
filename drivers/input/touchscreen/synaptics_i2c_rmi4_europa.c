@@ -599,6 +599,12 @@ static int synaptics_ts_resume(struct i2c_client *client)
 	gpio_set_value( TSP_INT , 1 ); 
 
 	regulator_touch = regulator_get(NULL, "maxldo06");
+	ret = regulator_set_voltage(regulator_touch, 2600000, 2600000);
+	if (ret) {
+		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
+				__func__, ret);
+		return -EIO;
+	}
 
 	ret = regulator_set_voltage(regulator_touch, 2600000, 2600000);
 	if (ret) {
