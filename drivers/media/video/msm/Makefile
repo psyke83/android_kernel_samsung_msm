@@ -40,6 +40,17 @@ endif
 obj-$(CONFIG_ARCH_MSM8960) += msm_io_8960.o msm_vfe32.o msm_vpe.o
 obj-$(CONFIG_MT9T013) += mt9t013.o mt9t013_reg.o
 obj-$(CONFIG_SN12M0PZ) += sn12m0pz.o sn12m0pz_reg.o
+obj-$(CONFIG_S5K4CA) += s5k4ca.o
+obj-$(CONFIG_SR200PC10) += sr200pc10.o
+obj-$(CONFIG_S5K5CA) += s5k5ca.o
+obj-$(CONFIG_S5K5CAFF) += s5k5caff.o
+obj-$(CONFIG_S5K5CCAF) += s5k5ccaf.o
+obj-$(CONFIG_S5K5CCFF) += s5k5ccff.o
+obj-$(CONFIG_ISX006) += isx006.o
+obj-$(CONFIG_S5K4ECGX) += s5k4ecgx.o
+obj-$(CONFIG_S5K4ECGX_COOPER) += s5k4ecgx_cooper.o ledflash_cooper.o
+obj-$(CONFIG_S5K5CCAF_GIO) += s5k5ccaf_gio.o
+obj-$(CONFIG_S5K5CAGX_GIO) += s5k5cagx_gio.o
 obj-$(CONFIG_MT9P012) += mt9p012_reg.o
 obj-$(CONFIG_MSM_CAMERA_AF_FOXCONN) += mt9p012_fox.o
 obj-$(CONFIG_MSM_CAMERA_AF_BAM) += mt9p012_bam.o
