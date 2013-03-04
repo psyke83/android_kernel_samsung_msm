@@ -1860,12 +1860,13 @@ static int pdp_adjust(const int adjust)
  * App. Interfece Device functions
  */
 
-static int multipdp_ioctl(struct inode *inode, struct file *file, 
+static int multipdp_ioctl(struct file *file, 
 			      unsigned int cmd, unsigned long arg)
 {
 	int ret, adjust;
 	pdp_arg_t pdp_arg;
 
+	//DPRINTK("multipdp_ioctl cmd=%d\n", cmd);
 	switch (cmd) {
 	case HN_PDP_ACTIVATE:
 		if (copy_from_user(&pdp_arg, (void *)arg, sizeof(pdp_arg)))
