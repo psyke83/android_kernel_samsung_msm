@@ -365,7 +365,7 @@ static int mmc31xx_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int mmc31xx_unlocked_ioctl(struct inode *inode, struct file *file, 
+static int mmc31xx_unlocked_ioctl(struct file *file,
 	unsigned int cmd, unsigned long arg)
 {
 	void __user *pa = (void __user *)arg;

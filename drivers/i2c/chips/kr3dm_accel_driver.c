@@ -482,7 +482,7 @@ static int kr3dm_close(struct inode *inode, struct file *file)
 
 
 /*  ioctl command for KR3DM device file */
-static int kr3dm_unlocked_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+static int kr3dm_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
 	unsigned char data[6];
