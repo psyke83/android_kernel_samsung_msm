@@ -193,6 +193,18 @@ PCOM_VREG_CONSUMERS(maxldo06) = {
 	REGULATOR_SUPPLY("maxldo06",	NULL),
 };
 
+PCOM_VREG_CONSUMERS(maxldo08) = {
+	REGULATOR_SUPPLY("maxldo08",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo09) = {
+	REGULATOR_SUPPLY("maxldo09",	NULL),
+};
+
+PCOM_VREG_CONSUMERS(maxldo10) = {
+	REGULATOR_SUPPLY("maxldo10",	NULL),
+};
+
 PCOM_VREG_CONSUMERS(maxldo12) = {
 	REGULATOR_SUPPLY("maxldo12",	NULL),
 };
@@ -209,6 +221,9 @@ PCOM_VREG_CONSUMERS(maxldo16) = {
 	REGULATOR_SUPPLY("maxldo16",	NULL),
 };
 
+PCOM_VREG_CONSUMERS(maxldo17) = {
+	REGULATOR_SUPPLY("maxldo17",	NULL),
+};
 
 PCOM_VREG_CONSUMERS(maxldo18) = {
 	REGULATOR_SUPPLY("maxldo18",	NULL),
@@ -257,13 +272,17 @@ static struct proccomm_regulator_info msm7627_pcom_vreg_info[] = {
 	PCOM_VREG_LDO(ldo17,  6, NULL,  1300000,  1300000, 0, -1, 0, 0, 0, 0),
 #ifdef CONFIG_MAX8899_CHARGER
 	PCOM_VREG_LDO(maxldo03, 42, NULL,  3000000,  3000000, 0, -1, 0, 0, 0, 0),
-	PCOM_VREG_LDO(maxldo04, 43, NULL,  3000000,  3000000, 0, -1, 0, 0, 0, 0),
-	PCOM_VREG_LDO(maxldo05, 44, NULL,  1800000,  1800000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo04, 43, NULL,  2800000,  3000000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo05, 44, NULL,  1800000,  3000000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo06, 45, NULL,  2600000,  2600000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo08, 47, NULL,  2600000,  2800000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo09, 48, NULL,  2800000,  2800000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo10, 49, NULL,  1200000,  2800000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo12, 51, NULL,  2600000,  2600000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo13, 52, NULL,  3300000,  3300000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo15, 54, NULL,  1800000,  1800000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo16, 55, NULL,  2850000,  3000000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo17, 56, NULL,  3000000,  3000000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo18, 57, NULL,  3300000,  3300000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo19, 58, NULL,  3300000,  3300000, 0, -1, 0, 0, 0, 0),
 #endif
