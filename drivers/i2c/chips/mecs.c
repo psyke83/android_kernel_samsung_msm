@@ -39,7 +39,7 @@
 
 static int ecs_ctrl_open(struct inode *inode, struct file *file);
 static int ecs_ctrl_release(struct inode *inode, struct file *file);
-static int ecs_ctrl_unlocked_ioctl(struct inode *inode, struct file *file, 
+static int ecs_ctrl_unlocked_ioctl(struct file *file,
 	unsigned int cmd, unsigned long arg);
 
 static DECLARE_WAIT_QUEUE_HEAD(open_wq);
@@ -105,7 +105,7 @@ static int ecs_ctrl_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static int ecs_ctrl_unlocked_ioctl(struct inode *inode, struct file *file, 
+static int ecs_ctrl_unlocked_ioctl(struct file *file,
 	unsigned int cmd, unsigned long arg)
 {
 	void __user *pa = (void __user *)arg;

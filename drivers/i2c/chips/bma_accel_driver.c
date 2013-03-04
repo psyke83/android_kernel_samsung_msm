@@ -572,7 +572,7 @@ static int bma222_fast_calibration(signed char *data)
 
 
 /*	ioctl command for BMA accel device file	*/
-static int bma_unlocked_ioctl(struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
+static int bma_unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	int err = 0;
 	unsigned char data[6];
