@@ -1037,17 +1037,46 @@ static unsigned bt_config_power_off[] = {
 	GPIO_CFG(46, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),	/* Tx */
 };
 
-static int bluetooth_power(int on)
-{
-	int pin, rc;
-	static struct regulator *vreg_bt;
+void wlan_setup_clock(int on);
+extern int bluesleep_start(void);
+extern void bluesleep_stop(void);
 
-	printk(KERN_DEBUG "%s\n", __func__);
+static void bluetooth_setup_power(int on) {
+	struct regulator *regulator_bt_2_6v;
 
-	/* do not have vreg bt defined, gp6 is the same */
-	/* vreg_get parameter 1 (struct device *) is ignored */
+	regulator_bt_2_6v = regulator_get(NULL, "maxldo14");
+	if (IS_ERR(regulator_bt_2_6v)) {
+		printk(KERN_ERR "%s: regulator get failed (%ld)\n",
+		   __func__, PTR_ERR(regulator_bt_2_6v));
+		return;
+	}
+
+	printk("%s %s --enter\n", __func__, on ? "on" : "down");
 
 	if (on) {
+		regulator_set_voltage(regulator_bt_2_6v, 2600000, 2600000);
+		regulator_enable(regulator_bt_2_6v);
+
+		/* additional delay for power on */
+		//mdelay(20);
+	} else {
+		/* power off for sleep current */
+		regulator_set_voltage(regulator_bt_2_6v, 2600000, 2600000);
+		regulator_disable(regulator_bt_2_6v);
+	}
+}
+
+static int bluetooth_power(int on) {
+	int pin, rc;
+
+	printk("%s %s --enter\n", __func__, on ? "on" : "down");
+
+	if (on) {
+		/* If WiFi isn't working,
+		   we should turn on the power for the clock supplied to BT */
+		if (gpio_get_value(gpio_wlan_reset_n) == 0)
+			wlan_setup_clock(1);
+
 		for (pin = 0; pin < ARRAY_SIZE(bt_config_power_on); pin++) {
 			rc = gpio_tlmm_config(bt_config_power_on[pin],
 					      GPIO_CFG_ENABLE);
@@ -1058,61 +1087,35 @@ static int bluetooth_power(int on)
 				return -EIO;
 			}
 		}
-		vreg_bt = regulator_get(NULL, "gp6");
 
-		if (IS_ERR(vreg_bt)) {
-			rc = PTR_ERR(vreg_bt);
-			pr_err("%s: could get not regulator: %d\n",
-					__func__, rc);
-			goto out;
-		}
+		bluetooth_setup_power(1);
 
-		/* units of mV, steps of 50 mV */
-		rc = regulator_set_voltage(vreg_bt, 2600000, 2600000);
-		if (rc < 0) {
-			pr_err("%s: could not set voltage: %d\n", __func__, rc);
-			goto bt_vreg_fail;
+		gpio_tlmm_config(GPIO_CFG(BT_PWR,0,GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,
+			GPIO_CFG_16MA), GPIO_CFG_ENABLE);
+		gpio_set_value(BT_PWR, 1);
+
+		mdelay(100);
+
+		bluesleep_start();
 		}
-		rc = regulator_enable(vreg_bt);
-		if (rc < 0) {
-			pr_err("%s: could not enable regulator: %d\n",
-					 __func__, rc);
-			goto bt_vreg_fail;
-		}
-	} else {
-		rc = regulator_disable(vreg_bt);
-		if (rc < 0) {
-			pr_err("%s: could not disable regulator: %d\n",
-					 __func__, rc);
-			goto bt_vreg_fail;
-		}
-		regulator_put(vreg_bt);
-		for (pin = 0; pin < ARRAY_SIZE(bt_config_power_off); pin++) {
-			rc = gpio_tlmm_config(bt_config_power_off[pin],
-					      GPIO_CFG_ENABLE);
-			if (rc) {
-				printk(KERN_ERR
-				       "%s: gpio_tlmm_config(%#x)=%d\n",
-				       __func__, bt_config_power_off[pin], rc);
-				return -EIO;
-			}
-		}
+	else {
+		bluesleep_stop();
+
+		gpio_set_value(BT_PWR, 0); /* BT_VREG_CTL */
+#if !defined(CONFIG_MACH_EUROPA) && !defined(CONFIG_MACH_CALLISTO)
+		if (gpio_get_value(gpio_wlan_reset_n) == 0)
+			wlan_setup_clock(0);
+#endif
+
+		bluetooth_setup_power(0); //jh8181.choi
 	}
 	return 0;
-
-bt_vreg_fail:
-	regulator_put(vreg_bt);
-out:
-	return rc;
 }
 
 static void __init bt_power_init(void)
 {
 	msm_bt_power_device.dev.platform_data = &bluetooth_power;
 }
-#else
-#define bt_power_init(x) do {} while (0)
-#endif
 
 static struct platform_device msm_device_pmic_leds = {
 	.name   = "pmic-leds",
@@ -1146,6 +1149,9 @@ static struct platform_device msm_bluesleep_device = {
 	.num_resources	= ARRAY_SIZE(bluesleep_resources),
 	.resource	= bluesleep_resources,
 };
+#else
+#define bt_power_init(x) do {} while (0)
+#endif
 
 static struct i2c_board_info touch_i2c_devices[] = {
 #ifdef CONFIG_TOUCHSCREEN_SAMSUNG_SYNAPTICS_I2C_RMI4
@@ -1842,8 +1848,8 @@ static struct platform_device *devices[] __initdata = {
 	&msm_device_uart_dm1,
 	&msm_device_uart_dm2,
 #ifdef CONFIG_BT
-	//&msm_bt_power_device,
-	//&msm_bluesleep_device,
+	&msm_bt_power_device,
+	&msm_bluesleep_device,
 #endif
 	&msm_device_pmic_leds,
 	&msm_device_snd,

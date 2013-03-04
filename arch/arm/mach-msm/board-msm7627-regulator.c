@@ -213,6 +213,10 @@ PCOM_VREG_CONSUMERS(maxldo13) = {
 	REGULATOR_SUPPLY("maxldo13",	NULL),
 };
 
+PCOM_VREG_CONSUMERS(maxldo14) = {
+	REGULATOR_SUPPLY("maxldo14",	NULL),
+};
+
 PCOM_VREG_CONSUMERS(maxldo15) = {
 	REGULATOR_SUPPLY("maxldo15",	NULL),
 };
@@ -280,6 +284,7 @@ static struct proccomm_regulator_info msm7627_pcom_vreg_info[] = {
 	PCOM_VREG_LDO(maxldo10, 49, NULL,  1200000,  2800000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo12, 51, NULL,  2600000,  2600000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo13, 52, NULL,  3300000,  3300000, 0, -1, 0, 0, 0, 0),
+	PCOM_VREG_LDO(maxldo14, 53, NULL,  2600000,  2600000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo15, 54, NULL,  1800000,  1800000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo16, 55, NULL,  2850000,  3000000, 0, -1, 0, 0, 0, 0),
 	PCOM_VREG_LDO(maxldo17, 56, NULL,  3000000,  3000000, 0, -1, 0, 0, 0, 0),
