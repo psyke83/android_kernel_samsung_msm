@@ -2264,7 +2264,13 @@ void wlan_setup_clock(int on) {
 	} else {
 		gpio_set_value(VDD_WLAN_EN, 0);  /* VDD_WLAN_EN Disable */
 		/* power off for sleep current */
+		regulator_set_voltage(vwlan_3_3v, 3300000, 3300000);
 		regulator_disable(vwlan_3_3v);
+#if ((defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO)) && CONFIG_SAMSUNG_BOARD_REVISION == 1)
+		regulator_set_voltage(vwlan_3_3v_2, 3300000, 3300000);
+		regulator_disable(vwlan_3_3v_2);
+#endif
+		regulator_set_voltage(vwlan_1_8v, 1800000, 1800000);
 		regulator_disable(vwlan_1_8v);
 	}
 }
