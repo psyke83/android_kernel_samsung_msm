@@ -353,6 +353,7 @@ static void synaptics_ts_work_func(struct work_struct *work)
 #endif
 
 work_func_out:
+	ts->use_irq = 1; //psyke83: hack to workaround bug in new workqueue behaviour
 	if (ts->use_irq)
 	{
 		enable_irq(ts->client->irq);
