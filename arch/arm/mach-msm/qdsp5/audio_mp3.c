@@ -2289,10 +2289,7 @@ static int audio_open(struct inode *inode, struct file *file)
 		if (rc) {
 			MM_ERR("audmgr open failed, freeing instance \
 					0x%08x\n", (int)audio);
-			if (!(file->f_flags & O_NONBLOCK))
-				goto err;
-			else
-				goto resource_err;
+			goto err;
 		}
 	}
 
@@ -2304,10 +2301,7 @@ static int audio_open(struct inode *inode, struct file *file)
 				audio->module_name, (int)audio);
 		if (audio->pcm_feedback == TUNNEL_MODE_PLAYBACK)
 			audmgr_close(&audio->audmgr);
-		if (!(file->f_flags & O_NONBLOCK))
-			goto err;
-		else
-			goto resource_err;
+		goto err;
 	}
 
 	rc = rmt_get_resource(audio);
@@ -2317,10 +2311,7 @@ static int audio_open(struct inode *inode, struct file *file)
 		if (audio->pcm_feedback == TUNNEL_MODE_PLAYBACK)
 			audmgr_close(&audio->audmgr);
 		msm_adsp_put(audio->audplay);
-		if (!(file->f_flags & O_NONBLOCK))
-			goto err;
-		else
-			goto resource_err;
+		goto err;
 	}
 
 	if (file->f_flags & O_NONBLOCK) {
@@ -2410,7 +2401,6 @@ output_buff_get_phys_error:
 output_buff_alloc_error:
 	ion_client_destroy(client);
 client_create_error:
-resource_err:
 	audpp_adec_free(audio->dec_id);
 	kfree(audio);
 	return rc;
