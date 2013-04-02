@@ -2981,7 +2981,7 @@ static int msmsdcc_enable(struct mmc_host *mmc)
 	msmsdcc_pm_qos_update_latency(host, 1);
 
 	if (mmc->card && mmc_card_sdio(mmc->card)) {
-		rc = 0;
+		//rc = 0;
 		goto out;
 	}
 
