@@ -31,10 +31,10 @@ hci_uart-$(CONFIG_BT_HCIUART_LL)	+= hci_ll.o
 hci_uart-$(CONFIG_BT_HCIUART_ATH3K)	+= hci_ath.o
 hci_uart-$(CONFIG_BT_HCIUART_IBS)	+= hci_ibs.o
 hci_uart-objs				:= $(hci_uart-y)
-obj-$(CONFIG_BT_MSM_SLEEP)              += msm_bt_sleep.o
-msm_bt_sleep-objs                       := bluesleep.o
 ifneq ($(CONFIG_SAMSUNG_BOARD_REVISION),)
   obj-$(CONFIG_MSM_BT_POWER)		+= bluetooth-power.o samsung-bluesleep.o
 else
+  obj-$(CONFIG_BT_MSM_SLEEP)              += msm_bt_sleep.o
+  msm_bt_sleep-objs                       := bluesleep.o
   obj-$(CONFIG_MSM_BT_POWER)		+= bluetooth-power.o
 endif
