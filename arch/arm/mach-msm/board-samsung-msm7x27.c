@@ -2075,8 +2075,14 @@ static uint32_t msm_sdcc_setup_power(struct device *dv, unsigned int vdd) {
 				     MPP_CFG(MPP_DLOGIC_LVL_MSMP,
 				     MPP_DLOGIC_OUT_CTRL_LOW));
 			} else {
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO)
+				rc = regulator_set_voltage(vreg_mmc, 3000000, 3000000);
+#else
+				rc = regulator_set_voltage(vreg_mmc, 2850000, 2850000);
+#endif
 				rc = regulator_disable(vreg_mmc);
 #if !defined(CONFIG_MACH_EUROPA) && !defined(CONFIG_MACH_CALLISTO)
+				rc = regulator_set_voltage(vreg_mmc2, 2850000, 2850000);
 				rc = regulator_disable(vreg_mmc2);
 #endif
 			}

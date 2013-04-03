@@ -3745,7 +3745,7 @@ void touch_power_onoff( int onoff )
 					__func__, ret);
 		}
 
-	    regulator_set_voltage(regulator_touch2, 2600000, 2600000);
+		regulator_set_voltage(regulator_touch2, 2600000, 2600000);
 		ret = regulator_enable(regulator_touch2);
 		if (ret) {
 			printk("[TSP] Error,%s: regulator enable failed (%d)\n",
@@ -3754,11 +3754,13 @@ void touch_power_onoff( int onoff )
 	}
 	else
 	{
+		regulator_set_voltage(regulator_touch1, 3000000, 3000000); 
 		ret = regulator_disable(regulator_touch1);
 		if (ret) {
 			printk("[TSP] Error,%s: regulator disable failed (%d)\n",
 					__func__, ret);
 		}
+		regulator_set_voltage(regulator_touch2, 2600000, 2600000);
 		ret = regulator_disable(regulator_touch2);
 		if (ret) {
 			printk("[TSP] Error,%s: regulator disable failed (%d)\n",
