@@ -472,7 +472,11 @@ void ApplyTargetVDD(void)
 	struct regulator *regulator_touch;
 	
 	regulator_touch = regulator_get(NULL, "maxldo06");
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_LUCAS)
 	regulator_set_voltage(regulator_touch, 2600000, 2600000);
+#else
+	regulator_set_voltage(regulator_touch, 3000000, 3000000);
+#endif
 	regulator_enable(regulator_touch);
 }
 
@@ -492,7 +496,11 @@ void RemoveTargetVDD(void)
 	struct regulator *regulator_touch;
 	
 	regulator_touch = regulator_get(NULL, "maxldo06");
+#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_LUCAS)
 	regulator_set_voltage(regulator_touch, 2600000, 2600000);
+#else
+	regulator_set_voltage(regulator_touch, 3000000, 3000000);
+#endif
 	regulator_disable(regulator_touch);
 }
 #endif
