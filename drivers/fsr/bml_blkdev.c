@@ -628,10 +628,12 @@ static void bml_blkdev_free(void)
  * @param state         device power management state
  * @return              0 on success
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 15)
-static int bml_suspend(struct platform_device *pdev, pm_message_t state)
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 31)
+static int bml_suspend(struct device *pdev, pm_message_t state)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 15)
 static int bml_suspend(struct device *dev, u32 state, u32 level)
+#else
+static int bml_suspend(struct platform_device *pdev, pm_message_t state)
 #endif
 {
 	u32 ret = 0;
@@ -670,10 +672,12 @@ static int bml_suspend(struct device *dev, u32 state, u32 level)
  * @param dev           device structure
  * @return              0 on success
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 15)
-static int bml_resume(struct platform_device *pdev)
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 31)
+static int bml_resume(struct device *pdev)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 15)
 static int bml_resume(struct device *dev, u32 level)
+#else
+static int bml_resume(struct platform_device *pdev)
 #endif
 {
 	u32 volume, ret;
@@ -714,6 +718,7 @@ static struct platform_driver bml_driver = {
                .suspend        = bml_suspend,
                .resume         = bml_resume,
 #endif
+               }
 };
 #else
 static struct device_driver bml_driver = {
