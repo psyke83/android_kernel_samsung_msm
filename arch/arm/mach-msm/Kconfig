@@ -476,14 +476,6 @@ config 800MHZ
 	help
 	  800Mhz support for Samsung MSM7x27T series (cooper, gio).
 
-config OVERCLOCK_AHB
-	bool "Overclock the AHB-bus with 50% for all frequencies from 480MHz and above."
-	depends on MSM_CPU_FREQ_SET_MIN_MAX && (MACH_EUROPA || MACH_CALLISTO || MACH_COOPER || MACH_GIO || MACH_BENI || MACH_TASS || MACH_TASSDT || MACH_LUCAS)
-	default n
-	help
-	  Increases the speed of memory read/writes but can cause instability.
-	  If unsure, choose N.
-
 config MACH_TROUT
 	depends on ARCH_MSM7X01A
 	depends on MSM_STACKED_MEMORY
