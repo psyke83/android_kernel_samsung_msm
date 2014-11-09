@@ -1986,7 +1986,7 @@ void msm_batt_check_event(struct work_struct *work)
 				return;
 		}
 		
-	printk(KERN_ERR "[Battery] %s \n", __func__);
+	//printk(KERN_ERR "[Battery] %s \n", __func__);
 	
 	get_batt_info();
 	check_charging_status(dwChargingState);

@@ -1715,7 +1715,7 @@ static int check_charging_status(int oldChargingState)
 	}
 #endif	
 
-	printk("[Battery] Currnet Charging state [%x], Batt temp [%d],  Batt Level [%d], Percent [%d]\n", dwChargingState, msm_batt_info.battery_Celsius, msm_batt_info.battery_level, msm_batt_info.batt_capacity);
+	//printk("[Battery] Currnet Charging state [%x], Batt temp [%d],  Batt Level [%d], Percent [%d]\n", dwChargingState, msm_batt_info.battery_Celsius, msm_batt_info.battery_level, msm_batt_info.batt_capacity);
 	
 	if(oldChargingState!= dwChargingState)
 	{
@@ -1988,7 +1988,7 @@ void msm_batt_check_event(struct work_struct *work)
 				return;
 		}
 		
-	printk(KERN_ERR "[Battery] %s \n", __func__);
+	//printk(KERN_ERR "[Battery] %s \n", __func__);
 	
 	get_batt_info();
 	check_charging_status(dwChargingState);

@@ -1986,7 +1986,7 @@ void msm_batt_check_event(struct work_struct *work)
 				return;
 		}
 		
-	printk(KERN_ERR "[Battery] %s \n", __func__);
+	//printk(KERN_ERR "[Battery] %s \n", __func__);
 	
 	get_batt_info();
 	check_charging_status(dwChargingState);
@@ -2009,7 +2009,7 @@ void msm_fsa9280_check_event(struct work_struct *work)
 	int ret=0;
 	unsigned char int1 = 0;
 
-	printk(KERN_ERR "[Battery] %s \n", __func__);
+	//printk(KERN_ERR "[Battery] %s \n", __func__);
 
 	fsa9280_i2c_read(FSA_INT1, &int1); // clear intterupt pin
 
