@@ -1797,7 +1797,7 @@ int GetAverageSample(int modified_sample){
 	static int chg_comp = 0;
 	int dwTotal_temp=0;
 
-	printk("[Battery] %s : Raw ADC Sample = %d \n", __func__, modified_sample);
+	//printk("[Battery] %s : Raw ADC Sample = %d \n", __func__, modified_sample);
 
 #ifdef __COMPENSATE_CHARGING__	
 	if(!prev_adc) 
@@ -1812,10 +1812,10 @@ int GetAverageSample(int modified_sample){
 				else modified_sample -= chg_comp;
 			}
 		else prev_adc = modified_sample;
-		printk("[Battery] %s : prev_adc = %d, modified_sample = %d\n", __func__, prev_adc, modified_sample);
+		//printk("[Battery] %s : prev_adc = %d, modified_sample = %d\n", __func__, prev_adc, modified_sample);
 		
 	}	
-	printk("[Battery] %s : Chg_Comp ADC Sample = %d \n", __func__, modified_sample);
+	//printk("[Battery] %s : Chg_Comp ADC Sample = %d \n", __func__, modified_sample);
 #endif
 
 	if(uCount <= AVERAGE_SAMPLE_NUMBER)
@@ -1840,7 +1840,7 @@ int GetAverageSample(int modified_sample){
 		//printk("[Battery] %s :Battery: AverageSample =%d \n", __func__, AverageSample);		
 	}
 	//printk("[Battery] %s :Battery{CalculateAverage()}: AverageSample = %d \n", __func__, AverageSample);	
-	printk("[Battery] %s : Average ADC Sample = %d \n", __func__, AverageSample);
+	//printk("[Battery] %s : Average ADC Sample = %d \n", __func__, AverageSample);
 
 #ifdef __COMPENSATE_CHARGING__	
 	if(modified_sample < BATT_RECHR_ADC && modified_sample > BATT_LEVEL6_ADC)
