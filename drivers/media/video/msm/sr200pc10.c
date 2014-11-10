@@ -68,7 +68,7 @@ struct sr200pc10_ctrl {
 static struct sr200pc10_ctrl *sr200pc10_ctrl;
 
 static DECLARE_WAIT_QUEUE_HEAD(sr200pc10_wait_queue);
-DECLARE_MUTEX(sr200pc10_sem);
+DEFINE_SEMAPHORE(sr200pc10_sem);
 static int16_t sr200pc10_effect = CAMERA_EFFECT_OFF;
 
 /*=============================================================

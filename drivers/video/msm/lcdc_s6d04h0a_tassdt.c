@@ -119,7 +119,7 @@ EXPORT_SYMBOL(lcd_on_state_for_debug);
 
 
 /*  added for TN LCD Backlight */
-static DECLARE_MUTEX(backlight_sem);
+static DEFINE_SEMAPHORE(backlight_sem);
 
 struct setting_table {
 	unsigned char command;	

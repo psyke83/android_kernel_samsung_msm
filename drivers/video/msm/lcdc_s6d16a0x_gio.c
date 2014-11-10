@@ -122,7 +122,7 @@ EXPORT_SYMBOL(lcd_on_state_for_debug);
 
 static DEFINE_SPINLOCK(lcd_ctrl_irq_lock);
 
-static DECLARE_MUTEX(backlight_sem);
+static DEFINE_SEMAPHORE(backlight_sem);
 
 struct setting_table {
 	unsigned char command;	

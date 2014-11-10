@@ -125,7 +125,7 @@ struct s5k4ecgx_ctrl {
 static struct s5k4ecgx_ctrl *s5k4ecgx_ctrl;
 
 static DECLARE_WAIT_QUEUE_HEAD(s5k4ecgx_wait_queue);
-DECLARE_MUTEX(s5k4ecgx_sem);
+DEFINE_SEMAPHORE(s5k4ecgx_sem);
 
 /*=============================================================
 	EXTERNAL DECLARATIONS

@@ -77,7 +77,7 @@ struct s5k5caff_ctrl {
 static struct s5k5caff_ctrl *s5k5caff_ctrl;
 
 static DECLARE_WAIT_QUEUE_HEAD(s5k5caff_wait_queue);
-DECLARE_MUTEX(s5k5caff_sem);
+DEFINE_SEMAPHORE(s5k5caff_sem);
 static int16_t s5k5caff_effect = CAMERA_EFFECT_OFF;
 
 /*=============================================================

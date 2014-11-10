@@ -88,7 +88,7 @@ struct s5k5cagx_ctrl {
 };
 static struct s5k5cagx_ctrl *s5k5cagx_ctrl;
 static DECLARE_WAIT_QUEUE_HEAD(s5k5cagx_wait_queue);
-DECLARE_MUTEX(s5k5cagx_sem);
+DEFINE_SEMAPHORE(s5k5cagx_sem);
 /*=============================================================
 	EXTERNAL DECLARATIONS
 ==============================================================*/
