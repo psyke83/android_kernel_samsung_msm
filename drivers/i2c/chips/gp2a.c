@@ -195,9 +195,8 @@ static void gp2a_work_func_prox(struct work_struct *work)
 		timeB = ktime_get();
 		
 		timeSub = ktime_sub(timeB,timeA);
-		printk(KERN_INFO "[PROXIMITY] timeSub sec = %d, timeSub nsec = %d \n",timeSub.tv.sec,timeSub.tv.nsec);
-		
-		if (timeSub.tv.sec>=3 )
+		printk(KERN_INFO "[PROXIMITY] timeSub sec = %d\n", timeSub.tv64);
+		if (timeSub.tv64 >= 3 )
 		{
 		    wake_lock_timeout(&prx_wake_lock,HZ/2);
 			printk(KERN_INFO "[PROXIMITY] wake_lock_timeout : HZ/2 \n");
