@@ -24,7 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <mach/gpio.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/synaptics_i2c_rmi.h>
 #include <linux/device.h>
 #include <linux/i2c/europa_tsp_gpio.h>
@@ -80,26 +80,19 @@ int tsp_reset( void )
 	uint8_t i2c_addr = 0x07;
 	uint8_t buf[1];
 #endif
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	printk("[TSP] %s+\n", __func__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	if (ts_global->use_irq)
 	{
 		disable_irq(ts_global->client->irq);
 	}
 
-	ret = regulator_set_voltage(regulator_touch, 2600000, 2600000);
+	ret = vreg_disable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_disable(regulator_touch);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 		goto tsp_reset_out;
@@ -124,16 +117,9 @@ int tsp_reset( void )
 	gpio_set_value( TSP_SDA , 1 ); 
 	gpio_set_value( TSP_INT , 1 ); 
 
-	ret = regulator_set_voltage(regulator_touch, 2600000, 2600000);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_enable(regulator_touch);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 		goto tsp_reset_out;
@@ -403,24 +389,23 @@ static int synaptics_ts_probe(
 {
 	struct synaptics_ts_data *ts;
 	int ret = 0;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	uint8_t i2c_addr = 0x05;
 	uint8_t buf[3];
 
 	printk("[TSP] %s, %d\n", __func__, __LINE__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
-
-	ret = regulator_set_voltage(regulator_touch, 2600000, 2600000);
+	vreg_touch = vreg_get(NULL, "maxldo06");
+	ret = vreg_set_level(vreg_touch, OUT2600mV);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
+		printk(KERN_ERR "%s: vreg set level failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
 
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -537,10 +522,10 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	int ret;
 	struct synaptics_ts_data *ts = i2c_get_clientdata(client);
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	printk("[TSP] %s+\n", __func__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	if (ts->use_irq)
 	{
@@ -567,16 +552,9 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 
 	msleep(20);
 
-	ret = regulator_set_voltage(regulator_touch, 2600000, 2600000);
+	ret = vreg_disable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_disable(regulator_touch);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -588,7 +566,7 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 static int synaptics_ts_resume(struct i2c_client *client)
 {
 	int ret;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	struct synaptics_ts_data *ts = i2c_get_clientdata(client);
 	uint8_t i2c_addr = 0x07;
 	uint8_t buf[1];
@@ -599,24 +577,11 @@ static int synaptics_ts_resume(struct i2c_client *client)
 	gpio_set_value( TSP_SDA , 1 ); 
 	gpio_set_value( TSP_INT , 1 ); 
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
-	ret = regulator_set_voltage(regulator_touch, 2600000, 2600000);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
-	ret = regulator_set_voltage(regulator_touch, 2600000, 2600000);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_enable(regulator_touch);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}

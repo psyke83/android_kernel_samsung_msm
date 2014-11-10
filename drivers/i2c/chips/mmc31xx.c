@@ -36,7 +36,6 @@
 #include <linux/sysctl.h>
 #include <asm/uaccess.h>
 #include <mach/vreg.h>
-#include <linux/regulator/consumer.h>
 
 #include <linux/i2c/mmc31xx.h>
 
@@ -690,7 +689,7 @@ static struct miscdevice mmc31xx_device = {
 
 int mmc31xx_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
-	struct regulator *mmc31xx_regulator;
+	struct vreg *mmc31xx_vreg;
 	unsigned char data[16] = {0};
 	int res = 0;
 
@@ -702,22 +701,21 @@ int mmc31xx_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	if(board_hw_revision < 5)
 	{
 		if(board_hw_revision >= 3)
-			mmc31xx_regulator = regulator_get(0, "maxldo04");
+			mmc31xx_vreg = vreg_get(0, "maxldo04");
 		else
-			mmc31xx_regulator = regulator_get(0, "maxldo03");
+			mmc31xx_vreg = vreg_get(0, "maxldo03");
 	}
 #elif defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
     // HW_REV_00 : maxldo03 HW_REV_01 : maxldo04
 	if(board_hw_revision < 2)
-		mmc31xx_regulator = regulator_get(0, "maxldo04");
+		mmc31xx_vreg = vreg_get(0, "maxldo04");
 #elif defined(CONFIG_MACH_LUCAS)
         // HW_REV_00 : maxldo03 HW_REV_01 : maxldo04
-	mmc31xx_regulator = regulator_get(0, "maxldo04");
+	mmc31xx_vreg = vreg_get(0, "maxldo04");
 #else
-	mmc31xx_regulator = regulator_get(0, "maxldo03");
-#endif
-	regulator_set_voltage(mmc31xx_regulator, 3000000, 3000000);
-
+	mmc31xx_vreg = vreg_get(0, "maxldo03");
+#endif		
+		
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		pr_err("%s: functionality check failed\n", __FUNCTION__);
 		res = -ENODEV;
@@ -739,17 +737,17 @@ int mmc31xx_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	// Power On	
 #if defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
 	if(board_hw_revision < 2){
-		if(regulator_enable(mmc31xx_regulator))
-			printk(KERN_ERR "regulator_enable: VLCD_3.0V regulator operation failed\n");
+		if(vreg_enable(mmc31xx_vreg))
+			printk(KERN_ERR "vreg_enable: VLCD_3.0V vreg operation failed\n");
 	}
 #elif defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO)
 	if(board_hw_revision < 5) {
-		if(regulator_enable(mmc31xx_regulator))
-			printk(KERN_ERR "regulator_enable: VLCD_3.0V operation failed\n");
+		if(vreg_enable(mmc31xx_vreg))
+			printk(KERN_ERR "vreg_enable: VLCD_3.0V operation failed\n");
 	}
 #else
-	if(regulator_enable(mmc31xx_regulator))
-		printk(KERN_ERR "regulator_enable: VLCD_3.0V operation failed\n");
+	if(vreg_enable(mmc31xx_vreg))
+		printk(KERN_ERR "vreg_enable: VLCD_3.0V operation failed\n");
 #endif
 
 	/* send ST cmd to mag sensor first of all */
@@ -815,42 +813,41 @@ static int mmc31xx_remove(struct i2c_client *client)
 #ifdef CONFIG_PM
 static int mmc31xx_suspend(struct i2c_client *client, pm_message_t mesg)
 {
-	struct regulator *mmc31xx_regulator;
+	struct vreg *mmc31xx_vreg;
   
 /* [HSS] PMIC LDO depends on each model's H/W. */  
 #if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO)
   	/* [HSS] [Cooper] PMIC LDO Change - VLCD_3.0V : maxldo03 => maxldo04 (REV0.2) */
 	if(board_hw_revision < 5) {
 		if(board_hw_revision >= 3)
-			mmc31xx_regulator = regulator_get(0, "maxldo04");
+			mmc31xx_vreg = vreg_get(0, "maxldo04");
 		else
-			mmc31xx_regulator = regulator_get(0, "maxldo03");
+			mmc31xx_vreg = vreg_get(0, "maxldo03");
 	}
 #elif defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
     // HW_REV_00 : maxldo03 HW_REV_01 : maxldo04
 	if(board_hw_revision < 2)
-		mmc31xx_regulator = regulator_get(0, "maxldo04");
+		mmc31xx_vreg = vreg_get(0, "maxldo04");
 #elif defined(CONFIG_MACH_LUCAS)
         // HW_REV_00 : maxldo03 HW_REV_01 : maxldo04
-	mmc31xx_regulator = regulator_get(0, "maxldo04");		
+	mmc31xx_vreg = vreg_get(0, "maxldo04");		
 #else
-	mmc31xx_regulator = regulator_get(0, "maxldo03");
-#endif
-	regulator_set_voltage(mmc31xx_regulator, 3000000, 3000000);
+	mmc31xx_vreg = vreg_get(0, "maxldo03");
+#endif	
 
 #if defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
 	if(board_hw_revision < 2) {
-		if(regulator_disable(mmc31xx_regulator))
-			printk(KERN_ERR "regulator_disable: VLCD_3.0V regulator operation failed\n");
+		if(vreg_disable(mmc31xx_vreg))
+			printk(KERN_ERR "vreg_disable: VLCD_3.0V vreg operation failed\n");
 	}
 #elif defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO)
 	if(board_hw_revision < 5) {
-		if(regulator_disable(mmc31xx_regulator))
-			printk(KERN_ERR "regulator_disable: VLCD_3.0V regulator operation failed\n");
+		if(vreg_disable(mmc31xx_vreg))
+			printk(KERN_ERR "vreg_disable: VLCD_3.0V vreg operation failed\n");
 	}
 #else
-	if(regulator_disable(mmc31xx_regulator))
-		printk(KERN_ERR "regulator_disable: VLCD_3.0V regulator operation failed\n");
+	if(vreg_disable(mmc31xx_vreg))
+		printk(KERN_ERR "vreg_disable: VLCD_3.0V vreg operation failed\n");
 #endif	
 	
 #if DEBUG
@@ -862,42 +859,41 @@ static int mmc31xx_suspend(struct i2c_client *client, pm_message_t mesg)
 
 static int mmc31xx_resume(struct i2c_client *client)
 {
-	struct regulator *mmc31xx_regulator;
+	struct vreg *mmc31xx_vreg;
 
 /* [HSS] PMIC LDO depends on each model's H/W. */
 #if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO)	
   	/* [HSS] [Cooper] PMIC LDO Change - VLCD_3.0V : maxldo03 => maxldo04 (REV0.2) */
 	if(board_hw_revision < 5) {
 		if(board_hw_revision >= 3)
-			mmc31xx_regulator = regulator_get(0, "maxldo04");
+			mmc31xx_vreg = vreg_get(0, "maxldo04");
 		else
-			mmc31xx_regulator = regulator_get(0, "maxldo03");
+			mmc31xx_vreg = vreg_get(0, "maxldo03");
 	}
 #elif defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
     // HW_REV_00 : maxldo03 HW_REV_01 : maxldo04
 	if(board_hw_revision < 2)
-		mmc31xx_regulator = regulator_get(0, "maxldo04");
+		mmc31xx_vreg = vreg_get(0, "maxldo04");
 #elif defined(CONFIG_MACH_LUCAS)
         // HW_REV_00 : maxldo03 HW_REV_01 : maxldo04
-	mmc31xx_regulator = regulator_get(0, "maxldo04");		
+	mmc31xx_vreg = vreg_get(0, "maxldo04");		
 #else
-	mmc31xx_regulator = regulator_get(0, "maxldo03");
-#endif
-	regulator_set_voltage(mmc31xx_regulator, 3000000, 3000000);
+	mmc31xx_vreg = vreg_get(0, "maxldo03");
+#endif	
 
 #if defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT)
-	if(board_hw_revision < 2) {
-		if(regulator_enable(mmc31xx_regulator))
-			printk(KERN_ERR "regulator_enable: VLCD_3.0V regulator operation failed\n");
+	if(board_hw_revision < 2) {	
+		if(vreg_enable(mmc31xx_vreg))
+			printk(KERN_ERR "vreg_enable: VLCD_3.0V vreg operation failed\n");			
 	}
 #elif defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO)
 	if(board_hw_revision < 5) {
-		if(regulator_enable(mmc31xx_regulator))
-			printk(KERN_ERR "regulator_enable: VLCD_3.0V regulator operation failed\n");
+		if(vreg_enable(mmc31xx_vreg))
+			printk(KERN_ERR "vreg_enable: VLCD_3.0V vreg operation failed\n");			
 	}
 #else
-	if(regulator_enable(mmc31xx_regulator))
-		printk(KERN_ERR "regulator_enable: VLCD_3.0V regulator operation failed\n");
+	if(vreg_enable(mmc31xx_vreg))
+		printk(KERN_ERR "vreg_enable: VLCD_3.0V vreg operation failed\n");			
 #endif
 		
 #if DEBUG

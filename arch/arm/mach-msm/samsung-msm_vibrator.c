@@ -26,7 +26,7 @@
 //#include <mach/clk.h>
 #include <mach/samsung_vibe.h>
 #include <mach/gpio.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/delay.h>
 
 #if defined(CONFIG_MACH_CALLISTO) || defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO) || defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_TASSDT) || defined(CONFIG_MACH_LUCAS)
@@ -50,6 +50,7 @@ VibeInt32 g_nLRA_CORE_CLK_PWM_MUL = IMM_PWM_MULTIPLIER;
 
 static struct hrtimer vibe_timer;
 static int is_vibe_on = 0;
+static int is_powered = 0;
 
 
 static int msm_vibrator_suspend(struct platform_device *pdev, pm_message_t state);
@@ -129,53 +130,51 @@ static int __devexit msm_vibrator_exit(struct platform_device *pdev)
 
 static int msm_vibrator_power(int on)
 {
-	struct regulator *regulator_msm_vibrator;
+	struct vreg *vreg_msm_vibrator;
 	int ret;
 
 #if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO)
-	regulator_msm_vibrator = regulator_get(NULL, "maxldo05");
+	vreg_msm_vibrator = vreg_get(NULL, "maxldo05");
 #else
-	regulator_msm_vibrator = regulator_get(NULL, "maxldo19");
+	vreg_msm_vibrator = vreg_get(NULL, "maxldo19");
 #endif	
 
-	if(IS_ERR(regulator_msm_vibrator)) {
-			printk(KERN_ERR "%s: regulator get failed (%ld)\n",
-							__func__,PTR_ERR(regulator_msm_vibrator));
-			return PTR_ERR(regulator_msm_vibrator);
+	if(IS_ERR(vreg_msm_vibrator)) {
+			printk(KERN_ERR "%s: vreg get failed (%ld)\n",
+							__func__,PTR_ERR(vreg_msm_vibrator));
+			return PTR_ERR(vreg_msm_vibrator);
 	}
 
 	if(on) {
 #if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO)
-		ret = regulator_set_voltage(regulator_msm_vibrator, 3000000, 3000000);
+		ret = vreg_set_level(vreg_msm_vibrator, OUT3000mV);
 #else
-		ret = regulator_set_voltage(regulator_msm_vibrator, 3300000, 3300000);	//for GIO LDO19(from 3100 to 3300)
-#endif
+		ret = vreg_set_level(vreg_msm_vibrator, OUT3300mV);	//for GIO LDO19(from 3100 to 3300)
+#endif	
 		if(ret) {
-				printk(KERN_ERR "%s: regulator set level failed (%d)\n",
+				printk(KERN_ERR "%s: vreg set level failed (%d)\n",
 								__func__,ret);
 				return -EIO;
 		}
 
-		ret = regulator_enable(regulator_msm_vibrator);
+		ret = vreg_enable(vreg_msm_vibrator);
 		if(ret) {
-				printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+				printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 								__func__,ret);
 				return -EIO;
 		}
+		is_powered = 1;
 //		printk("[VIB] ON\n");
 		mdelay(15);
-	} else {
-#if defined(CONFIG_MACH_EUROPA) || defined(CONFIG_MACH_CALLISTO)
-		ret = regulator_set_voltage(regulator_msm_vibrator, 3000000, 3000000);
-#else
-		ret = regulator_set_voltage(regulator_msm_vibrator, 3300000, 3300000);	//for GIO LDO19(from 3100 to 3300)
-#endif
-		ret = regulator_disable(regulator_msm_vibrator);
+	} else if (is_powered) {
+	
+		ret = vreg_disable(vreg_msm_vibrator);
 		if(ret) {
-				printk(KERN_ERR "%s: regulator disable failed (%d)\n",
+				printk(KERN_ERR "%s: vreg disable failed (%d)\n",
 								__func__,ret);
 				return -EIO;
 		}
+		is_powered = 0;
 //		printk("[VIB] OFF\n");
 	}
 
@@ -208,10 +207,12 @@ static void set_pmic_vibrator(int on)
 //	printk("[VIB] %s, input : %s\n",__func__,on ? "ON":"OFF");
 	if (on) {
 		clk_enable(android_vib_clk);
+		gpio_request(VIB_ON, NULL);
 		gpio_direction_output(VIB_ON, VIBRATION_ON);
 		is_vibe_on = 1;
 	} else {
 		if(is_vibe_on) {
+			gpio_request(VIB_ON, NULL);
 			gpio_direction_output(VIB_ON, VIBRATION_OFF);
 			clk_disable(android_vib_clk);
 			is_vibe_on = 0;
@@ -357,7 +358,7 @@ static int __devinit msm_vibrator_probe(struct platform_device *pdev)
 		msm_vibrator_power(VIBRATION_ON);
 	
 		/* Vibrator init sequence 
-		 * 1. power on ( regulator get )
+		 * 1. power on ( vreg get )
 		 * 2. clock get & enable ( core_clk )
 		 * 3. VIB_EN on
 		 */

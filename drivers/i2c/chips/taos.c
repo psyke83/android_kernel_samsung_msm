@@ -1,5 +1,5 @@
-/*
- *  Title : Optical Sensor(proximity sensor) driver for TAOSP002S00F1
+/* 
+ *  Title : Optical Sensor(proximity sensor) driver for TAOSP002S00F   
  *  Date  : 2009.02.27
  *  Name  : ms17.kim
  *
@@ -25,12 +25,12 @@
 #include <linux/timer.h>
 #include <linux/jiffies.h>
 #include <linux/wakelock.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 
 #include "taos.h"
 
 /*********** for debug **********************************************************/
-#if 1
+#if 1 
 #define gprintk(fmt, x... ) printk( "%s(%d): " fmt, __FUNCTION__ ,__LINE__, ## x)
 #else
 #define gprintk(x...) do { } while (0)
@@ -124,7 +124,7 @@
 #if defined(CONFIG_MACH_BENI)
 	#define PRX_THRSH_HI_PARAM		550
 	#define PRX_THRSH_LO_PARAM		400
-#elif defined(CONFIG_MACH_COOPER)
+#elif defined(CONFIG_MACH_COOPER) 
 	#define PRX_THRSH_HI_PARAM		700
 	#define PRX_THRSH_LO_PARAM		580
 #elif defined(CONFIG_MACH_TASS)
@@ -135,8 +135,8 @@
 	#define PRX_THRSH_LO_PARAM		450
 #elif defined(CONFIG_MACH_GIO) // Gio
 	#define PRX_THRSH_HI_PARAM		600
-	#define PRX_THRSH_LO_PARAM		450
-#else
+	#define PRX_THRSH_LO_PARAM		450		
+#else			
 	#define PRX_THRSH_HI_PARAM		0x2BC // 700
 	#define PRX_THRSH_LO_PARAM		0x226 // 600
 #endif
@@ -172,7 +172,7 @@ static short proximity_value = 0;
 
 static struct wake_lock prx_wake_lock;
 
-static struct regulator *regulator_proximity;
+static struct vreg *vreg_proximity;
 
 static ktime_t timeA,timeB;
 #if USE_INTERRUPT
@@ -188,30 +188,39 @@ extern int board_hw_revision;
 /*
 #if USE_INTERRUPT
 
-static int opt_i2c_read(u8 reg, u8 *val, unsigned int len ) {
+static int opt_i2c_read(u8 reg, u8 *val, unsigned int len )
+{
+
 	int err;
 	u8 buf[3];
 	//u8 rbuf[3];
 
 	//memset(buf, 0, sizeof(buf));
+	
 	struct i2c_msg msg[2];
 
-	buf[0] = reg;
+
+	buf[0] = reg; 
 
 	msg[0].addr = opt_i2c_client->addr;
 	msg[0].flags = 1;
+	
 	msg[0].len = 2;
 	msg[0].buf = buf;
 	err = i2c_transfer(opt_i2c_client->adapter, msg, 1);
+	
 	*val = buf[0] << 8 | buf[1];
-	if (err >= 0) return 0;
-	printk("%s %d i2c transfer error\n", __func__, __LINE__);
-	return err;
+	
+    if (err >= 0) return 0;
+
+    printk("%s %d i2c transfer error\n", __func__, __LINE__);
+    return err;
 }
 #endif
 */
 /*  i2c write routine for taos */
-static int opt_i2c_write( u8 reg, u8 *val ) {
+static int opt_i2c_write( u8 reg, u8 *val )
+{
     int err;
     struct i2c_msg msg[1];
     unsigned char data[2];
@@ -231,7 +240,7 @@ static int opt_i2c_write( u8 reg, u8 *val ) {
 
     if (err >= 0) return 0;
 
-    pr_err("[HSS] %s %d i2c transfer error : reg = [%X]\n", __func__, __LINE__, reg);
+    printk("[HSS] %s %d i2c transfer error : reg = [%X]\n", __func__, __LINE__, reg);
     return err;
 }
 
@@ -240,132 +249,156 @@ static int opt_i2c_write( u8 reg, u8 *val ) {
 /*		TAOS sysfs	  				         */
 /*************************************************************************/
 
-short taos_get_proximity_value() {
-	return proximity_value == 1 ? 0 : 1;
+short taos_get_proximity_value()
+{
+	return ((proximity_value==1)? 0:1);
 }
 
 EXPORT_SYMBOL(taos_get_proximity_value);
 
+
 static ssize_t proxsensor_file_state_show(struct device *dev,
-        struct device_attribute *attr, char *buf) {
+        struct device_attribute *attr, char *buf)
+{
 	unsigned int detect = 0;
 
-	pr_info("called %s \n",__func__);
+	gprintk("called %s \n",__func__);
 
-	detect = gpio_get_value(GPIO_SENSE_OUT);
+	detect = gpio_get_value(GPIO_SENSE_OUT);	
 
+//	return sprintf(buf,"%u\n",detect);
 	return detect;
 }
 
 static DEVICE_ATTR(proxsensor_file_state, S_IRUGO, proxsensor_file_state_show, NULL);
 
 
+
 /*****************************************************************************************
+ *  
+ *  function    : taos_work_func_prox 
+ *  description : This function is for proximity sensor (using B-1 Mode ). 
+ *                when INT signal is occured , it gets value from VO register.   
  *
- *  function    : taos_work_func_prox
- *  description : This function is for proximity sensor (using B-1 Mode ).
- *                when INT signal is occured , it gets value from VO register.
- *
- *
+ *                 
  */
 #if USE_INTERRUPT
-static void taos_work_func_prox(struct work_struct *work) {
+static void taos_work_func_prox(struct work_struct *work) 
+{
 	struct taos_data *taos = container_of(work, struct taos_data, work_prox);
 	unsigned char vout=0;
 	u16 adc_data;
 	u16 threshold_high;
 	u16 threshold_low;
 	u8 prox_int_thresh[4];
-	u8 als_lo = 0;              // RSS 110130  Low byte of ALS reading
-	u8 als_hi = 0;              // RSS 110130  High byte of ALS reading
+	u8 als_lo=0;              // RSS 110130  Low byte of ALS reading
+	u8 als_hi=0;              // RSS 110130  High byte of ALS reading
 	u16 prox_valid=1;      // RSS  110130 Used to determine if Prox is saturated by sun
-	u16 ALS_Saturated = (256 - PRX_INT_TIME_PARAM) * 1024 - 1;  // RSS 110131 Test value for saturation
+	u16 ALS_Saturated = ((256 - PRX_INT_TIME_PARAM) * 1024)-1;  // RSS 110131 Test value for saturation
 	int i;
 	/* Read VO & INT Clear */
-
-	pr_info("[PROXIMITY] %s : \n", __func__);
-
+	
+	gprintk("[PROXIMITY] %s : \n",__func__);
+ 	
  	/* Check to see if ALS is satuated    Code added by RSS on 110131*/
-  	als_lo = i2c_smbus_read_word_data(opt_i2c_client, CMD_REG | 0x14);  // RSS 110130  Read low byte of ALS Ch0 register
-  	als_hi = i2c_smbus_read_word_data(opt_i2c_client, CMD_REG | 0x15);  // RSS 110130  Read high byte of ALS Ch0 register
+  	als_lo = i2c_smbus_read_word_data(opt_i2c_client, CMD_REG |0x14);  // RSS 110130  Read low byte of ALS Ch0 register
+  	als_hi = i2c_smbus_read_word_data(opt_i2c_client, CMD_REG |0x15);  // RSS 110130  Read high byte of ALS Ch0 register
   	prox_valid = (als_hi << 8) | als_lo;
 	// RSS 110130  Calculate 16 bit value for ALS Ch0 and place it in prox_valid. This will be tested to make sure it is not saturated later.
-  	pr_info("[HSS] [%s] --- ALS_Saturated=[%d], ALS_Ch0[prox_valid]=%d\n",__func__, ALS_Saturated, prox_valid);
-
-	prox_valid = prox_valid > ALS_Saturated ? 0 : 1;
+  	printk("[HSS] [%s] --- ALS_Saturated=[%d], ALS_Ch0[prox_valid]=%d\n",__func__, ALS_Saturated, prox_valid);
+  	if(prox_valid > ALS_Saturated)
+     		prox_valid = 0;     // False  saturated, must be in sun light
+  	else
+     		prox_valid = 1;   // True
 	/* End of code added by RSS 110130*/
-
-	/* change Threshold */
+	
+	/* change Threshold */ 
 	adc_data = i2c_smbus_read_word_data(opt_i2c_client, CMD_REG | PRX_LO);
-	threshold_high = i2c_smbus_read_word_data(opt_i2c_client, (CMD_REG | PRX_MAXTHRESHLO) );
-	threshold_low = i2c_smbus_read_word_data(opt_i2c_client, (CMD_REG | PRX_MINTHRESHLO) );
-	if ( (threshold_high ==  (PRX_THRSH_HI_PARAM)) && (adc_data >=  (PRX_THRSH_HI_PARAM) ) ) {
-		pr_info("[HSS] [%s] +++ adc_data=[%d], threshold_high=[%d],  threshold_min=[%d]\n", __func__, adc_data, threshold_high, threshold_low);
+	threshold_high= i2c_smbus_read_word_data(opt_i2c_client, (CMD_REG | PRX_MAXTHRESHLO) );
+	threshold_low= i2c_smbus_read_word_data(opt_i2c_client, (CMD_REG | PRX_MINTHRESHLO) );
+	if ( (threshold_high ==  (PRX_THRSH_HI_PARAM)) && (adc_data >=  (PRX_THRSH_HI_PARAM) ) )
+	{
+		printk("[HSS] [%s] +++ adc_data=[%d], threshold_high=[%d],  threshold_min=[%d]\n", __func__, adc_data, threshold_high, threshold_low);
 		proximity_value = 1;
 		prox_int_thresh[0] = (PRX_THRSH_LO_PARAM) & 0xFF;
 		prox_int_thresh[1] = (PRX_THRSH_LO_PARAM >> 8) & 0xFF;
 		prox_int_thresh[2] = (0xFFFF) & 0xFF;
-		prox_int_thresh[3] = (0xFFFF >> 8) & 0xFF;
-		for (i = 0; i < 4; i++) {
+		prox_int_thresh[3] = (0xFFFF >> 8) & 0xFF; 
+		for (i = 0; i < 4; i++)
+		{
 			opt_i2c_write((CMD_REG|(PRX_MINTHRESHLO + i)),&prox_int_thresh[i]);
 		}
-	} else if ( (threshold_high ==  (0xFFFF)) && (adc_data <=  (PRX_THRSH_LO_PARAM) ) ) {
-		pr_info("[HSS] [%s] --- adc_data=[%d], threshold_high=[%d],  threshold_min=[%d]\n", __func__, adc_data, threshold_high, threshold_low);
+	}
+	else if ( (threshold_high ==  (0xFFFF)) && (adc_data <=  (PRX_THRSH_LO_PARAM) ) )
+	{
+		printk("[HSS] [%s] --- adc_data=[%d], threshold_high=[%d],  threshold_min=[%d]\n", __func__, adc_data, threshold_high, threshold_low);
 		proximity_value = 0;
 		prox_int_thresh[0] = (0x0000) & 0xFF;
 		prox_int_thresh[1] = (0x0000 >> 8) & 0xFF;
 		prox_int_thresh[2] = (PRX_THRSH_HI_PARAM) & 0xFF;
-		prox_int_thresh[3] = (PRX_THRSH_HI_PARAM >> 8) & 0xFF;
-		for (i = 0; i < 4; i++) {
+		prox_int_thresh[3] = (PRX_THRSH_HI_PARAM >> 8) & 0xFF; 
+		for (i = 0; i < 4; i++)
+		{
 			opt_i2c_write((CMD_REG|(PRX_MINTHRESHLO + i)),&prox_int_thresh[i]);
 		}
-	} else {
-		pr_err("[HSS] [%s] Error! Not Common Case!adc_data=[%d], threshold_high=[%d],  threshold_min=[%d]\n", __func__, adc_data, threshold_high, threshold_low);
 	}
-
-	if(proximity_value == 0) {
+    else
+    {
+        printk("[HSS] [%s] Error! Not Common Case!adc_data=[%d], threshold_high=[%d],  threshold_min=[%d]\n", __func__, adc_data, threshold_high, threshold_low);
+    }
+      
+	if(proximity_value ==0)
+	{
 		timeB = ktime_get();
-
+		
 		timeSub = ktime_sub(timeB,timeA);
-		pr_err("[PROXIMITY] timeSub sec = %d\n", timeSub.tv64);
-
-		if (timeSub.tv64 >= 3 ) {
-			wake_lock_timeout(&prx_wake_lock, HZ / 2);
-			pr_err("[PROXIMITY] wake_lock_timeout : HZ/2 \n");
-		} else {
-			pr_err("[PROXIMITY] wake_lock is already set \n");
+		printk(KERN_INFO "[PROXIMITY] timeSub sec = %d\n", timeSub.tv64);
+		if (timeSub.tv64 >= 3 )
+		{
+		    wake_lock_timeout(&prx_wake_lock,HZ/2);
+			printk(KERN_INFO "[PROXIMITY] wake_lock_timeout : HZ/2 \n");
 		}
+		else
+			printk(KERN_INFO "[PROXIMITY] wake_lock is already set \n");
+
 	}
 
-	if(USE_INPUT_DEVICE) {
-		input_report_abs(taos->input_dev ,ABS_DISTANCE, (int)vout);
+	if(USE_INPUT_DEVICE)
+	{
+		input_report_abs(taos->input_dev,ABS_DISTANCE,(int)vout);
 		input_sync(taos->input_dev);
 		mdelay(1);
 	}
 
 	/* reset Interrupt pin */
 	/* to active Interrupt, TMD2771x Interuupt pin shoud be reset. */
-	i2c_smbus_write_byte(opt_i2c_client, (CMD_REG | CMD_SPL_FN | CMD_PROXALS_INTCLR));
+	i2c_smbus_write_byte(opt_i2c_client,(CMD_REG|CMD_SPL_FN|CMD_PROXALS_INTCLR));
 
 	/* enable INT */
 
 	enable_irq(taos->irq);
+
+	
+
 }
 
 
-static irqreturn_t taos_irq_handler(int irq, void *dev_id) {
+static irqreturn_t taos_irq_handler(int irq, void *dev_id)
+{
 	struct taos_data *taos = dev_id;
 
-	pr_info("[PROXIMITY] taos->irq = %d\n",taos->irq);
+	printk("[PROXIMITY] taos->irq = %d\n",taos->irq);
 
-	if(taos->irq !=-1) {
+	if(taos->irq !=-1)
+	{
 		disable_irq_nosync(taos->irq);
-		pr_info("[PROXIMITY] disable_irq \n");
+		gprintk("[PROXIMITY] disable_irq \n");
 
 		queue_work(taos_wq, &taos->work_prox);
-	}
 
-	pr_info("[PROXIMITY] IRQ_HANDLED \n");
+	}
+	
+	printk("[PROXIMITY] IRQ_HANDLED \n");
 
 	return IRQ_HANDLED;
 }
@@ -374,165 +407,186 @@ static irqreturn_t taos_irq_handler(int irq, void *dev_id) {
 
 
 
-void taos_chip_init(void) {
+void taos_chip_init(void)
+{
 	/* set INT 	*/
 //	s3c_gpio_cfgpin(GPIO_PS_VOUT, S3C_GPIO_SFN(GPIO_PS_VOUT_AF));
 //	s3c_gpio_setpull(GPIO_PS_VOUT, S3C_GPIO_PULL_NONE);
 
 //	irq_set_irq_type(IRQ_TAOS_INT, IRQ_TYPE_EDGE_FALLING);
+		
+	
 }
 
 
 
 /*****************************************************************************************
- *
- *  function    : taos_on
+ *  
+ *  function    : taos_on 
  *  description : This function is power-on function for optical sensor.
  *
  *  int type    : Sensor type. Two values is available (PROXIMITY,LIGHT).
  *                it support power-on function separately.
- *
- *
+ *                
+ *                 
  */
 
 int tsp_proximity_irq_status = 0;
-void taos_on(struct taos_data *taos, int type) {
+void taos_on(struct taos_data *taos, int type)
+{
 	u8 value;
 	u8 prox_int_thresh[4];
 	int err = 0;
 	int i;
-	pr_info("taos_on(%d)\n", type);
-	pr_info("taos power on voltage up \n");
+	gprintk("taos_on(%d)\n",type);
+	gprintk("taos power on voltage up \n");
 
-	regulator_enable(regulator_proximity); // voltage
+	vreg_enable(vreg_proximity); // voltage 
 
 	//register irq to wakeup source
-	pr_info("[TAOS] register irq = %d\n",taos ->irq);
+	printk("[TAOS] register irq = %d\n",taos ->irq);
 	err = irq_set_irq_wake(taos ->irq, 1);  // enable : 1, disable : 0
-	pr_info("[TAOS] register wakeup source = %d\n",err);
-	if (err) {
-		pr_err("[TAOS] register wakeup source failed\n");
-	}
-
-	if(type == PROXIMITY) {
+	printk("[TAOS] register wakeup source = %d\n",err);
+	if (err) 
+		printk("[TAOS] register wakeup source failed\n");
+	if(type == PROXIMITY)
+	{
 		tsp_proximity_irq_status = 1;
-		pr_info("enable irq for proximity\n");
+		gprintk("enable irq for proximity\n");
 		enable_irq(taos ->irq);
 	}
 
-	mdelay(12); // [HSS] Fix Proximity I2C Fail : Add delay 12ms after VDD ON
+    mdelay(12); // [HSS] Fix Proximity I2C Fail : Add delay 12ms after VDD ON
 
 	value = CNTL_REG_CLEAR;
-	if ((err = (opt_i2c_write((CMD_REG|CNTRL),&value))) < 0) {
-		pr_err("[diony] i2c_smbus_write_byte_data to clr ctrl reg failed in ioctl prox_on\n");
-	}
+	if ((err = (opt_i2c_write((CMD_REG|CNTRL),&value))) < 0){
+			printk("[diony] i2c_smbus_write_byte_data to clr ctrl reg failed in ioctl prox_on\n");
+		}
 	value = PRX_INT_TIME_PARAM;
 	if ((err = (opt_i2c_write((CMD_REG|ALS_TIME), &value))) < 0) {
-		pr_err("[diony] i2c_smbus_write_byte_data to als time reg failed in ioctl prox_on\n");
-	}
+			printk("[diony] i2c_smbus_write_byte_data to als time reg failed in ioctl prox_on\n");
+		}
 	value = PRX_ADC_TIME_PARAM;
 	if ((err = (opt_i2c_write((CMD_REG|PRX_TIME), &value))) < 0) {
-		pr_err("[diony] i2c_smbus_write_byte_data to prox time reg failed in ioctl prox_on\n");
-	}
+			printk("[diony] i2c_smbus_write_byte_data to prox time reg failed in ioctl prox_on\n");
+		}
 	value = PRX_WAIT_TIME_PARAM;
 	if ((err = (opt_i2c_write((CMD_REG|WAIT_TIME), &value))) < 0){
-		pr_err("[diony] i2c_smbus_write_byte_data to wait time reg failed in ioctl prox_on\n");
-	}
+			printk("[diony] i2c_smbus_write_byte_data to wait time reg failed in ioctl prox_on\n");
+		}
 	value = INTR_FILTER_PARAM;
 	if ((err = (opt_i2c_write((CMD_REG|INTERRUPT), &value))) < 0) {
-		pr_err("[diony] i2c_smbus_write_byte_data to interrupt reg failed in ioctl prox_on\n");
-	}
+			printk("[diony] i2c_smbus_write_byte_data to interrupt reg failed in ioctl prox_on\n");
+		}
 	value = PRX_CONFIG_PARAM;
 	if ((err = (opt_i2c_write((CMD_REG|PRX_CFG), &value))) < 0) {
-		pr_err("[diony] i2c_smbus_write_byte_data to prox cfg reg failed in ioctl prox_on\n");
-	}
+			printk("[diony] i2c_smbus_write_byte_data to prox cfg reg failed in ioctl prox_on\n");
+		}
 	value = PRX_PULSE_CNT_PARAM;
 	if ((err = (opt_i2c_write((CMD_REG|PRX_COUNT), &value))) < 0){
-		pr_err("[diony] i2c_smbus_write_byte_data to prox cnt reg failed in ioctl prox_on\n");
-	}
+			printk("[diony] i2c_smbus_write_byte_data to prox cnt reg failed in ioctl prox_on\n");
+		}
 	value = PRX_GAIN_PARAM;
 	if ((err = (opt_i2c_write((CMD_REG|GAIN), &value))) < 0) {
-		pr_err("[diony] i2c_smbus_write_byte_data to prox gain reg failed in ioctl prox_on\n");
-	}
-	prox_int_thresh[0] = (0x0000) & 0xFF;
-	prox_int_thresh[1] = (0x0000 >> 8) & 0xFF;
-	prox_int_thresh[2] = (PRX_THRSH_HI_PARAM) & 0xFF;
-	prox_int_thresh[3] = (PRX_THRSH_HI_PARAM >> 8) & 0xFF;
+			printk("[diony] i2c_smbus_write_byte_data to prox gain reg failed in ioctl prox_on\n");
+		}
+		prox_int_thresh[0] = (0x0000) & 0xFF;
+		prox_int_thresh[1] = (0x0000 >> 8) & 0xFF;
+		prox_int_thresh[2] = (PRX_THRSH_HI_PARAM) & 0xFF;
+		prox_int_thresh[3] = (PRX_THRSH_HI_PARAM >> 8) & 0xFF; 
 	for (i = 0; i < 4; i++) {
 		if ((err = (opt_i2c_write((CMD_REG|(PRX_MINTHRESHLO + i)),&prox_int_thresh[i]))) < 0) {
-			pr_err("[diony]i2c_smbus_write_byte_data to prox int thrsh regs failed in ioctl prox_on\n");
-		}
+				printk("[diony]i2c_smbus_write_byte_data to prox int thrsh regs failed in ioctl prox_on\n");
+			}
 	}
 	value = CNTL_INTPROXPON_ENBL;
 	if ((err = (opt_i2c_write((CMD_REG|CNTRL), &value))) < 0) {
-		pr_err("[diony]i2c_smbus_write_byte_data to ctrl reg "
-			"failed in ioctl prox_on\n");
-	}
+			printk("[diony]i2c_smbus_write_byte_data to ctrl reg "
+						"failed in ioctl prox_on\n");
+		}
 }
 
 /*****************************************************************************************
- *
- *  function    : taos_off
+ *  
+ *  function    : taos_off 
  *  description : This function is power-off function for optical sensor.
  *
  *  int type    : Sensor type. Three values is available (PROXIMITY,LIGHT,ALL).
  *                it support power-on function separately.
+ *                
+ *                 
  */
 
-void taos_off(struct taos_data *taos, int type) {
+void taos_off(struct taos_data *taos, int type)
+{
 	u8 value;
 	int err = 0;
-	pr_info("taos_off(%d)\n", type);
+	gprintk("taos_off(%d)\n",type);
 	value = CNTL_REG_CLEAR;
-	opt_i2c_write((u8)(CMD_REG | CNTRL), &value);
-//	regulator_disable(regulator_proximity); // [HSS] should not disable Vdd when proximity sensor off because Vdd is shared with LCD and Compass.
+	opt_i2c_write((u8)(CMD_REG|CNTRL) , &value);
+//	vreg_disable(vreg_proximity); // [HSS] should not disable Vdd when proximity sensor off because Vdd is shared with LCD and Compass.
 
-	pr_info("taos_off voltage down(%d)\n", type);
+	gprintk("taos_off voltage down(%d)\n",type);
 
 	//delete irq from wakeup source
-	pr_info("[TAOS] unregister irq = %d\n", taos->irq);
-	err = irq_set_irq_wake(taos->irq, 0); // enable : 1, disable : 0
-	pr_info("[TAOS] register wakeup source = %d\n", err);
-	if (err) {
-		pr_err("[TAOS] register wakeup source failed\n");
-	}
-
+	printk("[TAOS] unregister irq = %d\n",taos ->irq);
+	err = irq_set_irq_wake(taos ->irq, 0); // enable : 1, disable : 0
+	printk("[TAOS] register wakeup source = %d\n",err);
+	if (err) 
+		printk("[TAOS] register wakeup source failed\n");
+	
+	
 	gprintk("taos power off \n");
-	if(type == PROXIMITY || type == ALL) {
-		tsp_proximity_irq_status = 0;
-		pr_info("disable irq for proximity \n");
+	if(type == PROXIMITY || type==ALL)
+	{
+		tsp_proximity_irq_status = 0;	
+		gprintk("disable irq for proximity \n");
 		disable_irq_nosync(taos ->irq);
 	}
 }
 
+
 /*************************************************************************/
 /*		TAOS file operations  				         */
 /*************************************************************************/
-static int proximity_open(struct inode *ip, struct file *fp) {
+static int proximity_open(struct inode *ip, struct file *fp)
+{
 	return 0;
+
 }
 
-static int proximity_release(struct inode *ip, struct file *fp) {
+static int proximity_release(struct inode *ip, struct file *fp)
+{
 	return 0;
+
 }
 
-static long proximity_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
+static long proximity_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
 
 	struct taos_data *taos = dev_get_drvdata(switch_cmd_dev);
 	int ret=0;
 	switch(cmd) {
+
 		case TAOS_PROX_OPEN:
-			pr_info("[PROXIMITY] %s : case OPEN\n", __FUNCTION__);
-			taos_on(taos,PROXIMITY);
-			proximity_enable =1;
-		break;
+			{
+				printk(KERN_INFO "[PROXIMITY] %s : case OPEN\n", __FUNCTION__);
+				taos_on(taos,PROXIMITY);
+				proximity_enable =1;
+				
+			}
+			break;
+
 		case TAOS_PROX_CLOSE:
-			pr_info("[PROXIMITY] %s : case CLOSE\n", __FUNCTION__);
-			taos_off(taos,PROXIMITY);
-			proximity_enable=0;
-		break;
+			{
+				printk(KERN_INFO "[PROXIMITY] %s : case CLOSE\n", __FUNCTION__);
+				taos_off(taos,PROXIMITY);
+				proximity_enable=0;
+			}
+			break;
+
 		default:
-			pr_info("[PROXIMITY] unknown ioctl %d\n", cmd);
+			printk(KERN_INFO "[PROXIMITY] unknown ioctl %d\n", cmd);
 			ret = -1;
 			break;
 	}
@@ -547,15 +601,20 @@ static struct file_operations proximity_fops = {
     	.release = proximity_release,
     	.unlocked_ioctl = proximity_ioctl,
 };
-
+                 
 static struct miscdevice proximity_device = {
     .minor  = MISC_DYNAMIC_MINOR,
     .name   = "proximity",
     .fops   = &proximity_fops,
 };
 
+
+
+//------------------------------------------------------------------------------------
+
 static int taos_opt_probe(struct i2c_client *client,
-			 const struct i2c_device_id *id) {
+			 const struct i2c_device_id *id)
+{
 	int err = 0;
 	unsigned char value;
 
@@ -566,46 +625,49 @@ static int taos_opt_probe(struct i2c_client *client,
 
 	struct taos_data *taos;
 #ifdef STM_DEBUG
-	pr_info("%s\n",__FUNCTION__);
+	printk(KERN_INFO "%s\n",__FUNCTION__);
 #endif
 /* [HSS] PMIC LDO depends on each model's H/W. */
-#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO)
+#if defined(CONFIG_MACH_COOPER) || defined(CONFIG_MACH_GIO)	
   	/* [HSS] [Cooper] PMIC LDO Change - VLCD_3.0V : maxldo03 => maxldo04 (REV0.2) */
-	if(board_hw_revision >= 3) {
-		regulator_proximity = regulator_get(0, "maxldo04");
-	} else {
-		regulator_proximity = regulator_get(0, "maxldo03");
-	}
+	if(board_hw_revision >= 3)
+		vreg_proximity = vreg_get(0, "maxldo04");
+	else
+		vreg_proximity = vreg_get(0, "maxldo03");
 #elif defined(CONFIG_MACH_BENI) || defined(CONFIG_MACH_TASS) || defined(CONFIG_MACH_LUCAS)
         // HW_REV_00 : maxldo03 HW_REV_01 : maxldo04
-	regulator_proximity = regulator_get(0, "maxldo04");
+	vreg_proximity = vreg_get(0, "maxldo04");
 #elif defined(CONFIG_MACH_TASSDT)
-	regulator_proximity = regulator_get(0, "maxldo03");
+  vreg_proximity = vreg_get(0, "maxldo03");
 #else
-	regulator_proximity = regulator_get(0, "maxldo03");
+	vreg_proximity = vreg_get(0, "maxldo03");
 #endif
 
-	if (IS_ERR(regulator_proximity)) {
-		pr_err("===== [PROXIMITY] proximity IS_ERR TEST =====\n");
-		return PTR_ERR(regulator_proximity);
+	if (IS_ERR(vreg_proximity))
+	{	
+		printk("===== [PROXIMITY] proximity IS_ERR TEST =====\n");
+		return PTR_ERR(vreg_proximity);
 	}
 
-	// regulator_set_voltage(regulator_proximity, 2600000); // [HSS] Follow other devices voltage set
-	regulator_enable(regulator_proximity); // voltage
+	// vreg_set_level(vreg_proximity, OUT2600mV); // [HSS] Follow other devices voltage set
+	vreg_enable(vreg_proximity); // voltage 
 
-	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-		pr_err("[TAOS] i2c_check_functionality error\n");
+	
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
+	{
+		printk(KERN_INFO "[TAOS] i2c_check_functionality error\n");
 		err = -ENODEV;
 		goto exit;
 	}
 	if ( !i2c_check_functionality(client->adapter,I2C_FUNC_SMBUS_BYTE_DATA) ) {
-		pr_err("[TAOS] byte op is not permited.\n");
+		printk(KERN_INFO "[TAOS] byte op is not permited.\n");
 		goto exit;
 	}
 
 	/* OK. For now, we presume we have a valid client. We now create the
 	client structure, even though we cannot fill it completely yet. */
-	if (!(taos = kzalloc(sizeof(struct taos_data), GFP_KERNEL))) {
+	if (!(taos = kzalloc(sizeof(struct taos_data), GFP_KERNEL)))
+	{
 		err = -ENOMEM;
 		goto exit;
 	}
@@ -613,10 +675,11 @@ static int taos_opt_probe(struct i2c_client *client,
 	taos->client = client;
 	i2c_set_clientdata(client, taos);
 	opt_i2c_client = client;
-	pr_info("[%s] slave addr = %x\n", __func__, client->addr);
+	printk("[%s] slave addr = %x\n", __func__, client->addr);		
 
-	mdelay(12); // [HSS] Fix Proximity I2C Fail : Add delay 12ms after VDD ON
-	/* Basic Software Operation for TMD2771X Module */
+   mdelay(12); // [HSS] Fix Proximity I2C Fail : Add delay 12ms after VDD ON
+   
+/* Basic Software Operation for TMD2771X Module */
 	value = CNTL_REG_CLEAR;
 	opt_i2c_write((u8)(CMD_REG|CNTRL) , &value);
 	value = PRX_INT_TIME_PARAM;
@@ -629,31 +692,39 @@ static int taos_opt_probe(struct i2c_client *client,
 	opt_i2c_write((u8)(CMD_REG|PRX_COUNT) , &value);
 	value = PRX_GAIN_PARAM;
 	opt_i2c_write((u8)(CMD_REG|GAIN) , &value);
-	value = (CNTL_WAIT_TMR_ENBL | CNTL_PROX_DET_ENBL | CNTL_PWRON);
+	value = (CNTL_WAIT_TMR_ENBL | CNTL_PROX_DET_ENBL | CNTL_PWRON); 
 	opt_i2c_write((u8)(CMD_REG|CNTRL) , &value);
 	mdelay(12);
-	if (i2c_smbus_read_byte(client) < 0) {
-		pr_err("[TAOS] i2c_smbus_read_byte error!!\n");
+	if (i2c_smbus_read_byte(client) < 0)
+	{
+		printk(KERN_ERR "[TAOS] i2c_smbus_read_byte error!!\n");
 		goto exit_kfree;
-	} else {
-		pr_info("TAOS Device detected!\n");
 	}
-
+	else
+	{
+		printk("TAOS Device detected!\n");
+	}
+	
 	/* Input device Settings */
-	if(USE_INPUT_DEVICE) {
+	if(USE_INPUT_DEVICE)
+	{
 		taos->input_dev = input_allocate_device();
-		if (taos->input_dev == NULL) {
+		if (taos->input_dev == NULL) 
+		{
 			pr_err("Failed to allocate input device\n");
 			return -ENOMEM;
 		}
 		taos->input_dev->name = "proximity";
-
+	
 		set_bit(EV_SYN,taos->input_dev->evbit);
 		set_bit(EV_ABS,taos->input_dev->evbit);
-		input_set_abs_params(taos->input_dev, ABS_DISTANCE, 0, 1, 0, 0);
-
+		
+ 	       input_set_abs_params(taos->input_dev, ABS_DISTANCE, 0, 1, 0, 0);
+		
+	
 		err = input_register_device(taos->input_dev);
-		if (err) {
+		if (err) 
+		{
 			pr_err("Unable to register %s input device\n", taos->input_dev->name);
 			input_free_device(taos->input_dev);
 			kfree(taos);
@@ -665,15 +736,16 @@ static int taos_opt_probe(struct i2c_client *client,
 #if USE_INTERRUPT
 	/* WORK QUEUE Settings */
 	taos_wq = create_singlethread_workqueue("taos_wq");
-	if (!taos_wq) return -ENOMEM;
+	if (!taos_wq)
+		return -ENOMEM;
 	INIT_WORK(&taos->work_prox, taos_work_func_prox);
-	pr_info("Workqueue Settings complete\n");
+	gprintk("Workqueue Settings complete\n");
 #endif
 
 	/* misc device Settings */
 	err = misc_register(&proximity_device);
 	if(err) {
-		pr_err("misc_register failed - prox \n");
+		pr_err(KERN_ERR "misc_register failed - prox \n");
 	}
 
 	/* wake lock init */
@@ -684,53 +756,57 @@ static int taos_opt_probe(struct i2c_client *client,
 	if (IS_ERR(proxsensor_class))
 		pr_err("Failed to create class(proxsensor)!\n");
 
-	switch_cmd_dev = device_create(proxsensor_class, NULL, 0, NULL, "switch_cmd");
+	switch_cmd_dev = device_create(proxsensor_class, NULL, 0, NULL, "switch_cmd");	
 	if (device_create_file(switch_cmd_dev, &dev_attr_proxsensor_file_state) < 0)
 		pr_err("Failed to create device file(%s)!\n", dev_attr_proxsensor_file_state.attr.name);
-
+	
 	dev_set_drvdata(switch_cmd_dev,taos);
-
+	
 	/* ktime init */
 
 	timeA = ktime_set(0,0);
 	timeB = ktime_set(0,0);
-
+	
 	/* gpio config */
 	config = GPIO_CFG(GPIO_SENSE_OUT, 0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA);
 	err = gpio_tlmm_config(config, GPIO_CFG_ENABLE);
-	if (err) {
-		pr_err("%s: gpio_tlmm_config(%#x)=%d\n", __func__, GPIO_SENSE_OUT, err);
-	}
+	if (err) 
+		printk(KERN_ERR "%s: gpio_tlmm_config(%#x)=%d\n", __func__, GPIO_SENSE_OUT, err);
 
 	mdelay(2);
 #if USE_INTERRUPT
-	/* INT Settings */
+	/* INT Settings */	
 	irq = gpio_to_irq(GPIO_SENSE_OUT);
 	taos->irq = -1;
 	irq_set_irq_type(irq, IRQ_TYPE_EDGE_FALLING);
 
 	err = request_irq(irq, taos_irq_handler, IRQF_DISABLED, "taos_int", taos);
-	if (err) {
-		pr_info("[TAOS] request_irq failed for taos\n");
+	if (err)
+	{
+		printk("[TAOS] request_irq failed for taos\n");
 		goto exit_kfree;
 	}
 
-	pr_info("[TAOS] register irq = %d\n", irq);
+	printk("[TAOS] register irq = %d\n",irq);
 	err = irq_set_irq_wake(irq, 1);
-	pr_info("[TAOS] register wakeup source = %d\n", err);
-	if (err) {
-		pr_info("[TAOS] register wakeup source failed\n");
-	}
+	printk("[TAOS] register wakeup source = %d\n",err);
+	if (err) 
+		printk("[TAOS] register wakeup source failed\n");
+	
 	taos->irq = irq;
-	pr_info("INT Settings complete\n");
+	gprintk("INT Settings complete\n");
 #endif
+	
 	// maintain power-down mode before using sensor
-	taos_off(taos, ALL);
+	taos_off(taos,ALL);
+	
+//++	// test for sensor 
+
 /*
 	printk("[TAOS] curr prox value = %d\n", gpio_get_value(GPIO_SENSE_OUT));
 	taos_on(taos,PROXIMITY);
 	printk("[TAOS] curr prox value = %d\n", gpio_get_value(GPIO_SENSE_OUT));
-
+	
 //--
 
 	// maintain power-down mode before using sensor
@@ -738,9 +814,9 @@ static int taos_opt_probe(struct i2c_client *client,
 	taos_off(taos,ALL);
 */
 
-	pr_info("taos_opt_probe is OK!!\n");
+	printk("taos_opt_probe is OK!!\n");
 	return 0;
-
+	
 exit_kfree:
 	kfree(taos);
 exit:
@@ -748,18 +824,17 @@ exit:
 }
 
 
-static int taos_opt_remove(struct i2c_client *client) {
+static int taos_opt_remove(struct i2c_client *client)
+{
 	struct taos_data *taos = i2c_get_clientdata(client);
 #ifdef TAOS_DEBUG
-	pr_info("%s\n", __FUNCTION__);
-#endif
-	if (taos_wq) {
+	printk(KERN_INFO "%s\n",__FUNCTION__);
+#endif	
+	if (taos_wq)
 		destroy_workqueue(taos_wq);
-	}
 
-	if(USE_INPUT_DEVICE) {
+	if(USE_INPUT_DEVICE)
 		input_unregister_device(taos->input_dev);
-	}
 	kfree(taos);
 
 	misc_deregister(&proximity_device);
@@ -768,19 +843,21 @@ static int taos_opt_remove(struct i2c_client *client) {
 }
 
 #ifdef CONFIG_PM
-static int taos_opt_suspend(struct i2c_client *client, pm_message_t mesg) {
+static int taos_opt_suspend(struct i2c_client *client, pm_message_t mesg)
+{
 //	struct taos_data *taos = i2c_get_clientdata(client);
 #ifdef TAOS_DEBUG
-	pr_info("[%s] TAOS !!suspend mode!!\n", __FUNCTION__);
+	printk(KERN_INFO "[%s] TAOS !!suspend mode!!\n",__FUNCTION__);
 #endif
 	return 0;
 }
 
-static int taos_opt_resume(struct i2c_client *client) {
+static int taos_opt_resume(struct i2c_client *client)
+{
 //	struct taos_data *taos = i2c_get_clientdata(client);
 //	u8 value;
 #ifdef TAOS_DEBUG
-	pr_info("[%s] TAOS !!resume mode!!\n", __FUNCTION__);
+	printk(KERN_INFO "[%s] TAOS !!resume mode!!\n",__FUNCTION__);
 #endif
 	/* wake_up source handler */
 
@@ -801,9 +878,9 @@ static const struct i2c_device_id taos_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, taos_id);
 
-static struct i2c_driver taos_opt_driver = {
+static struct i2c_driver taos_opt_driver = {	
 	.driver = {
-		.owner	= THIS_MODULE,
+		.owner	= THIS_MODULE,	
 		.name	= "taos",
 	},
 //	.class		= I2C_CLASS_HWMON,
@@ -815,17 +892,20 @@ static struct i2c_driver taos_opt_driver = {
 	.resume		= taos_opt_resume,
 };
 
-static int __init taos_opt_init(void) {
+static int __init taos_opt_init(void)
+{
+
 #ifdef TAOS_DEBUG
-	pr_info("%s\n",__FUNCTION__);
+	printk(KERN_INFO "%s\n",__FUNCTION__);
 #endif
 	return i2c_add_driver(&taos_opt_driver);
 }
 
-static void __exit taos_opt_exit(void) {
+static void __exit taos_opt_exit(void)
+{
 	i2c_del_driver(&taos_opt_driver);
 #ifdef TAOS_DEBUG
-	pr_info("%s\n", __FUNCTION__);
+	printk(KERN_INFO "%s\n",__FUNCTION__);
 #endif
 }
 

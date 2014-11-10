@@ -30,7 +30,7 @@
 
 #include "s5k5ccaf.h"
 #include <mach/camera.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/io.h>
 
 
@@ -1197,15 +1197,15 @@ void sensor_rough_control(void __user *arg)
 
 void cam_pw(int status)
 {
-        struct regulator *regulator_cam_out8_vddio;
-        struct regulator *regulator_cam_out9_vdda;
-        struct regulator *regulator_cam_out10_vddreg;
-        struct regulator *regulator_cam_out17_af; 
+        struct vreg *vreg_cam_out8_vddio;
+        struct vreg *vreg_cam_out9_vdda;
+        struct vreg *vreg_cam_out10_vddreg;
+        struct vreg *vreg_cam_out17_af; 
 
-        regulator_cam_out8_vddio		= regulator_get(NULL, "maxldo08");
-        regulator_cam_out9_vdda		= regulator_get(NULL, "maxldo09");
-        regulator_cam_out10_vddreg	= regulator_get(NULL, "maxldo10");
-        regulator_cam_out17_af			= regulator_get(NULL, "maxldo17");
+        vreg_cam_out8_vddio		= vreg_get(NULL, "maxldo08");
+        vreg_cam_out9_vdda		= vreg_get(NULL, "maxldo09");
+        vreg_cam_out10_vddreg	= vreg_get(NULL, "maxldo10");
+        vreg_cam_out17_af			= vreg_get(NULL, "maxldo17");
 
 
 
@@ -1213,17 +1213,17 @@ void cam_pw(int status)
 	if(status == 1) //POWER ON
 	{
 		PCAM_DEBUG("POWER ON");
-		regulator_set_voltage(regulator_cam_out17_af,  3000000, 3000000);
-		regulator_set_voltage(regulator_cam_out9_vdda,  2800000, 2800000);		// VDDA 2.8V
-		regulator_set_voltage(regulator_cam_out10_vddreg, 1200000, 1200000);	// VDD_REG 1.2V		
-		regulator_set_voltage(regulator_cam_out8_vddio,  2600000, 2600000);	// VDDIO 2.6V		
+		vreg_set_level(vreg_cam_out17_af,  OUT3000mV);
+		vreg_set_level(vreg_cam_out9_vdda,  OUT2800mV);		// VDDA 2.8V
+		vreg_set_level(vreg_cam_out10_vddreg, OUT1200mV);	// VDD_REG 1.2V		
+		vreg_set_level(vreg_cam_out8_vddio,  OUT2600mV);	// VDDIO 2.6V		
 
-		regulator_enable(regulator_cam_out9_vdda);
+		vreg_enable(vreg_cam_out9_vdda);
 		udelay(1);
-		regulator_enable(regulator_cam_out10_vddreg);
+		vreg_enable(vreg_cam_out10_vddreg);
 		udelay(1);
-		regulator_enable(regulator_cam_out8_vddio);
-		regulator_enable(regulator_cam_out17_af);		
+		vreg_enable(vreg_cam_out8_vddio);
+		vreg_enable(vreg_cam_out17_af);		
 
 		gpio_set_value(1, 1); //SPECTURM IC ON
 
@@ -1231,16 +1231,12 @@ void cam_pw(int status)
 	else //POWER OFF
 	{
 		PCAM_DEBUG("POWER OFF");
-		regulator_set_voltage(regulator_cam_out17_af,  3000000, 3000000);
-		regulator_set_voltage(regulator_cam_out9_vdda,  2800000, 2800000);		// VDDA 2.8V
-		regulator_set_voltage(regulator_cam_out10_vddreg, 1200000, 1200000);	// VDD_REG 1.2V		
-		regulator_set_voltage(regulator_cam_out8_vddio,  2600000, 2600000);	// VDDIO 2.6V		
-		regulator_disable(regulator_cam_out17_af);			
-		regulator_disable(regulator_cam_out8_vddio);
+		vreg_disable(vreg_cam_out17_af);			
+		vreg_disable(vreg_cam_out8_vddio);
 		udelay(1);
-		regulator_disable(regulator_cam_out10_vddreg);
+		vreg_disable(vreg_cam_out10_vddreg);
 		udelay(1);
-		regulator_disable(regulator_cam_out9_vdda);
+		vreg_disable(vreg_cam_out9_vdda);
 
 		gpio_set_value(1, 0); //SPECTURM IC OFF
 	}

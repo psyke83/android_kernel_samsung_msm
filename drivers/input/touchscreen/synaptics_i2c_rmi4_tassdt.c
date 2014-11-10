@@ -23,8 +23,8 @@
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <linux/regulator/consumer.h>
 #include <mach/gpio.h>
+#include <mach/vreg.h>
 #include <linux/synaptics_i2c_rmi.h>
 #include <linux/device.h>
 #include <linux/i2c/europa_tsp_gpio.h>
@@ -150,10 +150,10 @@ int tsp_reset( void )
 {
 	int ret = 1; 
 	int key = 0;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	printk("[TSP] %s+\n", __func__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	// for TSK
 	for(key = 0; key < MAX_KEYS ; key++)
@@ -164,18 +164,11 @@ int tsp_reset( void )
 		disable_irq(ts_global->client->irq);
 	}
 
-	ret = regulator_set_voltage(regulator_touch, 3000000, 3000000);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_disable(regulator_touch);
+	ret = vreg_disable(vreg_touch);
 
 	msleep(10);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 		goto tsp_reset_out;
@@ -202,10 +195,10 @@ int tsp_reset( void )
 	gpio_set_value( TSP_SDA , 1 ); 
 	gpio_set_value( TSP_INT , 1 ); 
 
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 		goto tsp_reset_out;
@@ -226,21 +219,20 @@ tsp_reset_out:
 #ifdef KEY_LED_CONTROL
 int key_led_power_control(uint8_t LED_ON_OFF)
 {
-	struct regulator *regulator_keyled;
+	struct vreg *vreg_keyled;
 	int ret=0;
 
 	printk(KERN_ERR "%s: key_led_power_control ON/OFF [%d]\n",__func__, LED_ON_OFF);
-	regulator_keyled = regulator_get(NULL, "maxldo04");
+	vreg_keyled = vreg_get(NULL, "maxldo04");
 	if (LED_ON_OFF == TRUE) {
-		ret = regulator_set_voltage(regulator_keyled, 3000000, 3000000);
-		ret = regulator_enable(regulator_keyled);
+		ret = vreg_set_level(vreg_keyled, OUT3000mV);
+		ret = vreg_enable(vreg_keyled);
 		mod_timer(&g_led_timer, jiffies + (HZ*KEY_LED_ON_TIME));
 		if (ret) {
 			return -EIO;
 		}
 	} else {
-		ret = regulator_set_voltage(regulator_keyled, 3000000, 3000000);
-		ret = regulator_disable(regulator_keyled);
+		ret = vreg_disable(vreg_keyled);
 		if (ret) {
 			return -EIO;
 		}
@@ -255,7 +247,7 @@ static void TouchKey_Led_TimerProc(void)
 	if(touchkey_led_on_off) {
 		ret = key_led_power_control(FALSE);
 		if (ret < 0) {
-			printk(KERN_ERR "%s: regulator disable failed (%d)\n",__func__, ret);
+			printk(KERN_ERR "%s: vreg disable failed (%d)\n",__func__, ret);
 			return -EIO;
 		} else {
       			touchkey_led_on_off = 0;
@@ -300,7 +292,7 @@ static void process_key_event(uint8_t *tsk_msg)
 	if(!touchkey_led_on_off) {
 		ret = key_led_power_control(TRUE);
 		if (ret < 0) {
-			printk(KERN_ERR "%s: regulator enable failed (%d)\n",__func__, ret);
+			printk(KERN_ERR "%s: vreg enable failed (%d)\n",__func__, ret);
 		return -EIO;
 		} else {
       			touchkey_led_on_off = 1;
@@ -482,6 +474,7 @@ static void synaptics_ts_work_func(struct work_struct *work)
 	fingerInfo[2].id = fingerInfo[0].id;	
 	
 work_func_out:
+	ts->use_irq = 1; //psyke83: hack to workaround bug in new workqueue behaviour
 	if (ts->use_irq)
 	{
 		enable_irq(ts->client->irq);
@@ -565,7 +558,7 @@ static int synaptics_ts_probe(
 	struct synaptics_ts_data *ts;
 	int ret = 0;
 	int key = 0;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	uint8_t i2c_addr = 0x1B;
 	uint8_t buf_tmp[3]={0,};
 
@@ -574,18 +567,17 @@ static int synaptics_ts_probe(
 
 	printk("[TSP] %s, %d\n", __func__, __LINE__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
-
-	ret = regulator_set_voltage(regulator_touch, 3000000, 3000000);
+	vreg_touch = vreg_get(NULL, "maxldo06");
+	ret = vreg_set_level(vreg_touch, OUT3000mV);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
+		printk(KERN_ERR "%s: vreg set level failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
 
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -772,10 +764,10 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	int ret;
 	struct synaptics_ts_data *ts = i2c_get_clientdata(client);
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	printk("[TSP] %s+\n", __func__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	if (ts->use_irq)
 	{
@@ -806,17 +798,9 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	cancel_delayed_work_sync(&ts->work_check_ic);
 	}
 #endif
-
-	ret = regulator_set_voltage(regulator_touch, 3000000, 3000000);
+	ret = vreg_disable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_disable(regulator_touch);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -827,7 +811,7 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 	if(touchkey_led_on_off) {
 		ret = key_led_power_control(FALSE);
 		if (ret < 0) {
-			printk(KERN_ERR "%s: regulator disable failed (%d)\n",__func__, ret);
+			printk(KERN_ERR "%s: vreg disable failed (%d)\n",__func__, ret);
 		return -EIO;
 		} else {
       			touchkey_led_on_off = 0;
@@ -842,7 +826,7 @@ static int synaptics_ts_resume(struct i2c_client *client)
 {
 	int ret;
 	int key;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	struct synaptics_ts_data *ts = i2c_get_clientdata(client);
 	uint8_t i2c_addr = 0x1D;
 	uint8_t buf[1];
@@ -853,18 +837,11 @@ static int synaptics_ts_resume(struct i2c_client *client)
 	gpio_set_value( TSP_SDA , 1 ); 
 	gpio_set_value( TSP_INT , 1 ); 
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
-	ret = regulator_set_voltage(regulator_touch, 3000000, 3000000);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_enable(regulator_touch);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -872,7 +849,7 @@ static int synaptics_ts_resume(struct i2c_client *client)
 	if(!touchkey_led_on_off) {
 		ret = key_led_power_control(TRUE);
 		if (ret < 0) {
-			printk(KERN_ERR "%s: regulator enable failed (%d)\n",__func__, ret);
+			printk(KERN_ERR "%s: vreg enable failed (%d)\n",__func__, ret);
 		return -EIO;
 		} else {
       			touchkey_led_on_off = 1;

@@ -29,7 +29,7 @@
 
 #include "s5k5caff.h"
 #include <mach/camera.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/io.h>
 
 
@@ -1122,15 +1122,15 @@ void sensor_rough_control(void __user *arg)
 
 void cam_pw(int status)
 {
-        struct regulator *regulator_cam_out8_vddio;
-        struct regulator *regulator_cam_out9_vdda;
-        struct regulator *regulator_cam_out10_vddreg;
-        //struct regulator *regulator_cam_out4; //AF
+        struct vreg *vreg_cam_out8_vddio;
+        struct vreg *vreg_cam_out9_vdda;
+        struct vreg *vreg_cam_out10_vddreg;
+        //struct vreg *vreg_cam_out4; //AF
 
-        regulator_cam_out8_vddio	= regulator_get(NULL, "maxldo08");
-        regulator_cam_out9_vdda	= regulator_get(NULL, "maxldo09");
-        regulator_cam_out10_vddreg	= regulator_get(NULL, "maxldo10");
-        //regulator_cam_out4 = regulator_get(NULL, "maxldo04");
+        vreg_cam_out8_vddio	= vreg_get(NULL, "maxldo08");
+        vreg_cam_out9_vdda	= vreg_get(NULL, "maxldo09");
+        vreg_cam_out10_vddreg	= vreg_get(NULL, "maxldo10");
+        //vreg_cam_out4 = vreg_get(NULL, "maxldo04");
 
 
 
@@ -1138,16 +1138,16 @@ void cam_pw(int status)
 	if(status == 1) //POWER ON
 	{
 		PCAM_DEBUG("POWER ON");
-		//regulator_set_voltage(regulator_cam_out4,  2800000, 2800000);
-		regulator_set_voltage(regulator_cam_out10_vddreg, 1800000, 1800000);	// VDD_REG 1.8V
-		regulator_set_voltage(regulator_cam_out9_vdda,    2800000, 2800000);	// VDDA 2.8V
-		regulator_set_voltage(regulator_cam_out8_vddio,   2600000, 2600000);	// VDDIO 2.6V
+		//vreg_set_level(vreg_cam_out4,  OUT2800mV);
+		vreg_set_level(vreg_cam_out10_vddreg, OUT1800mV);	// VDD_REG 1.8V		
+		vreg_set_level(vreg_cam_out9_vdda,    OUT2800mV);	// VDDA 2.8V
+		vreg_set_level(vreg_cam_out8_vddio,   OUT2600mV);	// VDDIO 2.6V	
 
-		regulator_enable(regulator_cam_out10_vddreg);
+		vreg_enable(vreg_cam_out10_vddreg);
 		msleep(1);
-		regulator_enable(regulator_cam_out9_vdda);
-		regulator_enable(regulator_cam_out8_vddio);				
-		// regulator_enable(regulator_cam_out4);
+		vreg_enable(vreg_cam_out9_vdda);
+		vreg_enable(vreg_cam_out8_vddio);				
+		// vreg_enable(vreg_cam_out4);
 
 		//after power on, below function will be called.
 		pcam_msm_i2c_pwr_mgmt(s5k5caff_client->adapter, 1);
@@ -1159,15 +1159,11 @@ void cam_pw(int status)
 		//before power on, below function will be called.
 		pcam_msm_i2c_pwr_mgmt(s5k5caff_client->adapter, 0); 
 
-		//regulator_set_voltage(regulator_cam_out4,  2800000, 2800000);
-		regulator_set_voltage(regulator_cam_out10_vddreg, 1800000, 1800000);	// VDD_REG 1.8V
-		regulator_set_voltage(regulator_cam_out9_vdda,    2800000, 2800000);	// VDDA 2.8V
-		regulator_set_voltage(regulator_cam_out8_vddio,   2600000, 2600000);	// VDDIO 2.6V
-		regulator_disable(regulator_cam_out8_vddio);
+		vreg_disable(vreg_cam_out8_vddio);
 		msleep(1);
-		regulator_disable(regulator_cam_out10_vddreg);
-		regulator_disable(regulator_cam_out9_vdda);
-		//regulator_disable(regulator_cam_out4); //AF 2800
+		vreg_disable(vreg_cam_out10_vddreg);
+		vreg_disable(vreg_cam_out9_vdda);
+		//vreg_disable(vreg_cam_out4); //AF 2800
 	}
 	
 }

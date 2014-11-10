@@ -25,11 +25,11 @@
 #include <linux/uaccess.h>
 #include <linux/miscdevice.h>
 #include <media/msm_camera.h>
-#include <mach/camera.h>
 #include <mach/gpio.h>
 #include "sr200pc10.h"
 
-#include <linux/regulator/consumer.h>
+#include <mach/camera.h>
+#include <mach/vreg.h>
 
 #define SENSOR_DEBUG 0
 
@@ -487,30 +487,30 @@ void sensor_rough_control(void __user *arg)
 
 void cam_pw(int status)
 {
-        struct regulator *regulator_cam_out8;
-        struct regulator *regulator_cam_out9;
-        struct regulator *regulator_cam_out10;
+        struct vreg *vreg_cam_out8;
+        struct vreg *vreg_cam_out9;
+        struct vreg *vreg_cam_out10;
 
 
 	printk("<=PCAM=> cam_pw start\n");
 
 
-        regulator_cam_out8 = regulator_get(NULL, "maxldo08");
-        regulator_cam_out9 = regulator_get(NULL, "maxldo09");
-        regulator_cam_out10 = regulator_get(NULL, "maxldo10");
+        vreg_cam_out8 = vreg_get(NULL, "maxldo08");
+        vreg_cam_out9 = vreg_get(NULL, "maxldo09");
+        vreg_cam_out10 = vreg_get(NULL, "maxldo10");
 
 
 	if(status == 1)
 	{
 
 	    PCAM_DEBUG("POWER ON");
-	    regulator_set_voltage(regulator_cam_out8,  2600000, 2600000);//2600
-	    regulator_set_voltage(regulator_cam_out9,  2800000, 2800000);//2800
-	    regulator_set_voltage(regulator_cam_out10, 1800000, 1800000);//1800
+	    vreg_set_level(vreg_cam_out8,  OUT2600mV);//2600
+	    vreg_set_level(vreg_cam_out9,  OUT2800mV);//2800
+	    vreg_set_level(vreg_cam_out10, OUT1800mV);//1800
 
-	    regulator_enable(regulator_cam_out8);
-	    regulator_enable(regulator_cam_out9);
-	    regulator_enable(regulator_cam_out10);
+	    vreg_enable(vreg_cam_out8);
+	    vreg_enable(vreg_cam_out9);
+	    vreg_enable(vreg_cam_out10);
 
 	    //after power on, below function will be called.
 	    pcam_msm_i2c_pwr_mgmt(sr200pc10_client->adapter, 1);
@@ -522,12 +522,9 @@ void cam_pw(int status)
 	    pcam_msm_i2c_pwr_mgmt(sr200pc10_client->adapter, 0);	
 
 	    PCAM_DEBUG("POWER OFF");
-	    regulator_set_voltage(regulator_cam_out8,  2600000, 2600000);//2600
-	    regulator_set_voltage(regulator_cam_out9,  2800000, 2800000);//2800
-	    regulator_set_voltage(regulator_cam_out10, 1800000, 1800000);//1800
-	    regulator_disable(regulator_cam_out8);
-	    regulator_disable(regulator_cam_out9);
-	    regulator_disable(regulator_cam_out10);
+	    vreg_disable(vreg_cam_out8);
+	    vreg_disable(vreg_cam_out9);
+	    vreg_disable(vreg_cam_out10);
 	}
 
 }
@@ -1197,3 +1194,4 @@ static int __init sr200pc10_init(void)
 }
 
 module_init(sr200pc10_init);
+

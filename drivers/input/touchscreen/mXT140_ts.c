@@ -16,7 +16,7 @@
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <mach/gpio.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/device.h>
 
 extern int board_hw_revision; // minhyo0614
@@ -3724,46 +3724,44 @@ static irqreturn_t qt602240_ts_irq_handler(int irq, void *dev_id)
 void touch_power_onoff( int onoff )
 {
 	int ret = 0;
-	struct regulator *regulator_touch1;
-	struct regulator *regulator_touch2;
+	struct vreg *vreg_touch1;
+	struct vreg *vreg_touch2;
 
-	regulator_touch1 = regulator_get(NULL, "maxldo06");	// VTOUCH_3.0V
+	vreg_touch1 = vreg_get(NULL, "maxldo06");	// VTOUCH_3.0V
 #if (CONFIG_SAMSUNG_BOARD_REVISION == 0xFF) // Emul B'd
-	regulator_touch2 = regulator_get(NULL, "maxldo12");	// VTOUCH_2.6V
+	vreg_touch2 = vreg_get(NULL, "maxldo12");	// VTOUCH_2.6V
 #else
 	if( board_hw_revision < 3 )
-		regulator_touch2 = regulator_get(NULL, "maxldo15");	// VTOUCH_2.6V
+		vreg_touch2 = vreg_get(NULL, "maxldo15");	// VTOUCH_2.6V
 	else	
-		regulator_touch2 = regulator_get(NULL, "maxldo19");	// VTOUCH_2.6V
+		vreg_touch2 = vreg_get(NULL, "maxldo19");	// VTOUCH_2.6V
 #endif
 	if( onoff )
 	{	
-		regulator_set_voltage(regulator_touch1, 3000000, 3000000); 
-		ret = regulator_enable(regulator_touch1);
+		vreg_set_level(vreg_touch1, OUT3000mV); 
+		ret = vreg_enable(vreg_touch1);
 		if (ret) {
-			printk("[TSP] Error,%s: regulator enable failed (%d)\n",
+			printk("[TSP] Error,%s: vreg enable failed (%d)\n",
 					__func__, ret);
 		}
 
-		regulator_set_voltage(regulator_touch2, 2600000, 2600000);
-		ret = regulator_enable(regulator_touch2);
+	    vreg_set_level(vreg_touch2, OUT2600mV);
+		ret = vreg_enable(vreg_touch2);
 		if (ret) {
-			printk("[TSP] Error,%s: regulator enable failed (%d)\n",
+			printk("[TSP] Error,%s: vreg enable failed (%d)\n",
 					__func__, ret);
 		}
 	}
 	else
 	{
-		regulator_set_voltage(regulator_touch1, 3000000, 3000000); 
-		ret = regulator_disable(regulator_touch1);
+		ret = vreg_disable(vreg_touch1);
 		if (ret) {
-			printk("[TSP] Error,%s: regulator disable failed (%d)\n",
+			printk("[TSP] Error,%s: vreg disable failed (%d)\n",
 					__func__, ret);
 		}
-		regulator_set_voltage(regulator_touch2, 2600000, 2600000);
-		ret = regulator_disable(regulator_touch2);
+		ret = vreg_disable(vreg_touch2);
 		if (ret) {
-			printk("[TSP] Error,%s: regulator disable failed (%d)\n",
+			printk("[TSP] Error,%s: vreg disable failed (%d)\n",
 					__func__, ret);
 		}
 	}

@@ -26,4 +26,41 @@ int vreg_enable(struct vreg *vreg);
 int vreg_disable(struct vreg *vreg);
 int vreg_set_level(struct vreg *vreg, unsigned mv);
 
+#ifdef CONFIG_MAX8899_CHARGER
+/* OUT voltage setting */
+typedef enum {
+	OUT1200mV = 0,
+	OUT1500mV,
+	OUT1600mV,
+	OUT1800mV,
+	OUT2100mV,
+	OUT2500mV,
+	OUT2600mV,
+	OUT2650mV,
+	OUT2700mV,
+	OUT2800mV,
+	OUT2850mV,
+	OUT2900mV,
+	OUT3000mV,
+	OUT3100mV,
+	OUT3300mV,
+	FAIL_VOLT,
+	OUT1200uV = 0,
+	OUT1500uV = 1000,
+	OUT1600uV = 2000,
+	OUT1800uV = 3000,
+	OUT2100uV = 4000,
+	OUT2500uV = 5000,
+	OUT2600uV = 6000,
+	OUT2650uV = 7000,
+	OUT2700uV = 8000,
+	OUT2800uV = 9000,
+	OUT2850uV = 10000,
+	OUT2900uV = 11000,
+	OUT3000uV = 12000,
+	OUT3100uV = 13000,
+	OUT3300uV = 14000
+} out_voltage_type;
+#endif
+
 #endif

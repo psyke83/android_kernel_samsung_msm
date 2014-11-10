@@ -24,7 +24,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <mach/gpio.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/synaptics_i2c_rmi.h>
 #include <linux/device.h>
 #include <linux/i2c/europa_tsp_gpio.h>
@@ -57,6 +57,7 @@ static int touchkey_status[MAX_KEYS];
 
 #define TK_STATUS_PRESS		1
 #define TK_STATUS_RELEASE		0
+
 
 static struct workqueue_struct *synaptics_wq;
 static struct workqueue_struct *check_ic_wq;
@@ -142,10 +143,10 @@ int tsp_reset( void )
 	uint8_t i2c_addr = 0x07;
 	uint8_t buf[1];
 #endif
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	printk("[TSP] %s+\n", __func__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	// for TSK
 	for(key = 0; key < MAX_KEYS ; key++)
@@ -156,16 +157,9 @@ int tsp_reset( void )
 		disable_irq(ts_global->client->irq);
 	}
 
-	ret = regulator_set_voltage(regulator_touch, 3000000, 3000000);
+	ret = vreg_disable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_disable(regulator_touch);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 		goto tsp_reset_out;
@@ -187,9 +181,9 @@ int tsp_reset( void )
 	gpio_set_value( TSP_SDA , 1 ); 
 	gpio_set_value( TSP_INT , 1 ); 
 
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 		goto tsp_reset_out;
@@ -273,10 +267,10 @@ void TSP_forced_release_forkey(void)
 
 		if(fingerInfo[i].status != -2) continue;
 		
-		input_report_abs(ts_global->input_dev, ABS_MT_POSITION_X, fingerInfo[i].x);
-		input_report_abs(ts_global->input_dev, ABS_MT_POSITION_Y, fingerInfo[i].y);
 		input_report_abs(ts_global->input_dev, ABS_MT_TOUCH_MAJOR, 0);
 		input_report_abs(ts_global->input_dev, ABS_MT_WIDTH_MAJOR, fingerInfo[i].z);
+		input_report_abs(ts_global->input_dev, ABS_MT_POSITION_X, fingerInfo[i].x);
+		input_report_abs(ts_global->input_dev, ABS_MT_POSITION_Y, fingerInfo[i].y);
 		input_mt_sync(ts_global->input_dev);
 
 #ifdef CONFIG_KERNEL_DEBUG_SEC
@@ -323,10 +317,6 @@ static void synaptics_ts_work_func(struct work_struct *work)
 	fingerInfo[1].z = buf[11]/2;
 	fingerInfo[1].id = buf[6] & 0x0f;
 
-#if 1 // when user press in lower touch, touch is poor
-   if(fingerInfo[0].y == 479) fingerInfo[0].y = 478;
-   if(fingerInfo[1].y == 479) fingerInfo[1].y = 478;   
-#endif
 	//	print message
 //	for ( i= 0; i<MAX_USING_FINGER_NUM; i++ )
 //		printk("[TSP] finger[%d].x = %d, finger[%d].y = %d, finger[%d].z = %x, finger[%d].id = %x\n", i, fingerInfo[i].x, i, fingerInfo[i].y, i, fingerInfo[i].z, i, fingerInfo[i].id);
@@ -353,10 +343,10 @@ static void synaptics_ts_work_func(struct work_struct *work)
 				{
 		//			if(fingerInfo[1].id ==0)
 					{
-						input_report_abs(ts->input_dev, ABS_MT_POSITION_X, fingerInfo[2].x);	
-						input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, fingerInfo[2].y);
 						input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
 						input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, fingerInfo[2].z);
+						input_report_abs(ts->input_dev, ABS_MT_POSITION_X, fingerInfo[2].x);	
+						input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, fingerInfo[2].y);
 						input_mt_sync(ts->input_dev);
 						input_sync(ts->input_dev);
 
@@ -371,10 +361,10 @@ static void synaptics_ts_work_func(struct work_struct *work)
 					
 					if(ABS(fingerInfo[2].x,fingerInfo[0].x)>180)
 					{
-						input_report_abs(ts->input_dev, ABS_MT_POSITION_X, fingerInfo[2].x);	
-						input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, fingerInfo[2].y);
 						input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
 						input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, fingerInfo[2].z);
+						input_report_abs(ts->input_dev, ABS_MT_POSITION_X, fingerInfo[2].x);	
+						input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, fingerInfo[2].y);
 						input_mt_sync(ts->input_dev);
 						input_sync(ts->input_dev);
 
@@ -385,10 +375,10 @@ static void synaptics_ts_work_func(struct work_struct *work)
 					}
 					else if(ABS(fingerInfo[2].y,fingerInfo[0].y)>180)
 					{
-						input_report_abs(ts->input_dev, ABS_MT_POSITION_X, fingerInfo[2].x);	
-						input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, fingerInfo[2].y);
 						input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
 						input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, fingerInfo[2].z);
+						input_report_abs(ts->input_dev, ABS_MT_POSITION_X, fingerInfo[2].x);	
+						input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, fingerInfo[2].y);
 						input_mt_sync(ts->input_dev);
 						input_sync(ts->input_dev);
 
@@ -431,10 +421,10 @@ static void synaptics_ts_work_func(struct work_struct *work)
 
 		if(fingerInfo[i].status < 0) continue;
 		
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, fingerInfo[i].x);
-		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, fingerInfo[i].y);
 		input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, fingerInfo[i].status);
 		input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, fingerInfo[i].z);
+		input_report_abs(ts->input_dev, ABS_MT_POSITION_X, fingerInfo[i].x);
+		input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, fingerInfo[i].y);
 		input_mt_sync(ts->input_dev);
 
 #ifdef CONFIG_KERNEL_DEBUG_SEC
@@ -454,6 +444,7 @@ static void synaptics_ts_work_func(struct work_struct *work)
 	fingerInfo[2].id = fingerInfo[0].id;	
 	
 work_func_out:
+	ts->use_irq = 1; //psyke83: hack to workaround bug in new workqueue behaviour
 	if (ts->use_irq)
 	{
 		enable_irq(ts->client->irq);
@@ -570,25 +561,24 @@ static int synaptics_ts_probe(
 {
 	struct synaptics_ts_data *ts;
 	int ret = 0, key = 0;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	uint8_t i2c_addr = 0x1B;
 	uint8_t buf[3]={0,};
 	int i;
 
 	printk("[TSP] %s, %d\n", __func__, __LINE__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
-
-	ret = regulator_set_voltage(regulator_touch, 3000000, 3000000);
+	vreg_touch = vreg_get(NULL, "maxldo06");
+	ret = vreg_set_level(vreg_touch, OUT3000mV);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
+		printk(KERN_ERR "%s: vreg set level failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
 
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -624,10 +614,11 @@ static int synaptics_ts_probe(
 	set_bit(EV_ABS, ts->input_dev->evbit);
 
 	printk(KERN_INFO "synaptics_ts_probe: max_x: 320, max_y: 480\n");
-	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, MAX_X, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, MAX_Y, 0, 0);
+	
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0, 255, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_X, 0, MAX_X, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0, MAX_Y, 0, 0);
 
 	for(key = 0; key < MAX_KEYS ; key++)
 		input_set_capability(ts->input_dev, EV_KEY, touchkey_keycodes[key]);
@@ -806,10 +797,10 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	int ret;
 	struct synaptics_ts_data *ts = i2c_get_clientdata(client);
-	struct regulator *regulator_touch;
-	printk("[TSP] %s+\n", __func__ );
+	struct vreg *vreg_touch;
+	//printk("[TSP] %s+\n", __func__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	if( touch_present )
 	{
@@ -837,16 +828,9 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 
 	hrtimer_cancel(&ts->timer);
 
-	ret = regulator_set_voltage(regulator_touch, 3000000, 3000000);
+	ret = vreg_disable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_disable(regulator_touch);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -864,12 +848,12 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 static int synaptics_ts_resume(struct i2c_client *client)
 {
 	int ret, key, retry_count;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	struct synaptics_ts_data *ts = i2c_get_clientdata(client);
 	uint8_t i2c_addr = 0x1D;
 	uint8_t buf[1];
 
-	printk("[TSP] %s+\n", __func__ );
+	//printk("[TSP] %s+\n", __func__ );
 	if( touch_present )
 	{
 
@@ -877,20 +861,13 @@ static int synaptics_ts_resume(struct i2c_client *client)
 	gpio_set_value( TSP_SDA , 1 ); 
 	gpio_set_value( TSP_INT , 1 ); 
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
-	ret = regulator_set_voltage(regulator_touch, 3000000, 3000000);
-	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
-				__func__, ret);
-		return -EIO;
-	}
-
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 	
 	if (ret)
 	{
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}

@@ -183,10 +183,21 @@ int vreg_disable(struct vreg *vreg)
 }
 EXPORT_SYMBOL(vreg_disable);
 
+#ifdef CONFIG_MAX8899_CHARGER
+int vreg_set_level(struct vreg *vreg, out_voltage_type mv)
+#else
 int vreg_set_level(struct vreg *vreg, unsigned mv)
+#endif
 {
 	unsigned uv;
 	int rc;
+
+#ifdef CONFIG_MAX8899_CHARGER
+	if (mv >= FAIL_VOLT) {
+		printk(KERN_ERR "[VREG] %s : invalid vreg_level\n", __func__);
+		return -EINVAL;
+	}
+#endif
 
 	if (!vreg)
 		return -EINVAL;

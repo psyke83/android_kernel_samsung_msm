@@ -24,7 +24,7 @@
 #include <linux/io.h>
 #include <linux/platform_device.h>
 #include <mach/gpio.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/synaptics_i2c_rmi.h>
 #include <linux/device.h>
 #include <linux/i2c/tsp_gpio.h>
@@ -94,39 +94,39 @@ static void synaptics_ts_late_resume(struct early_suspend *h);
 
 void mcsdl_vdd_on(void)
 { 
-	struct regulator *regulator_touch;
-	regulator_touch = regulator_get(NULL, "maxldo06");
-	regulator_set_voltage(regulator_touch, 2800000, 2800000);
-	regulator_enable(regulator_touch);
-	mdelay(25); //MUST wait for 25ms after regulator_enable() 
+	struct vreg *vreg_touch;
+	vreg_touch = vreg_get(NULL, "maxldo06");
+	vreg_set_level(vreg_touch, OUT2800mV);
+	vreg_enable(vreg_touch);
+	mdelay(25); //MUST wait for 25ms after vreg_enable() 
 }
 
 void mcsdl_vdd_off(void)
 {
-	struct regulator *regulator_touch;
-	regulator_touch = regulator_get(NULL, "maxldo06");
-	regulator_disable(regulator_touch);
-	mdelay(100); //MUST wait for 100ms before regulator_enable() 
+	struct vreg *vreg_touch;
+	vreg_touch = vreg_get(NULL, "maxldo06");
+	vreg_disable(vreg_touch);
+	mdelay(100); //MUST wait for 100ms before vreg_enable() 
 }
 
 int tsp_reset( void )
 {
 	int ret=0;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	printk("[TSP] %s+\n", __func__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	if (ts_global->use_irq)
 	{
 		disable_irq(ts_global->client->irq);
 	}
 
-	ret = regulator_disable(regulator_touch);
+	ret = vreg_disable(vreg_touch);
 
 	msleep(10);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 		goto tsp_reset_out;
@@ -150,10 +150,10 @@ int tsp_reset( void )
 	gpio_set_value( TSP_INT , 1 ); 
 	gpio_set_value( VTOUCH_EN , 1 );	//I2C Pullup
 
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 		goto tsp_reset_out;
@@ -276,23 +276,23 @@ static int synaptics_ts_probe(
 {
 	struct synaptics_ts_data *ts;
 	int ret = 0;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 
 	printk("[TSP] %s, %d\n", __func__, __LINE__ );
 
 	tsp_ready=0;
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
-	ret = regulator_set_voltage(regulator_touch, 2800000, 2800000);
+	vreg_touch = vreg_get(NULL, "maxldo06");
+	ret = vreg_set_level(vreg_touch, OUT2800mV);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator set level failed (%d)\n",
+		printk(KERN_ERR "%s: vreg set level failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
 
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -437,10 +437,10 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 {
 	int ret;
 	struct synaptics_ts_data *ts = i2c_get_clientdata(client);
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 	printk("[TSP] %s+\n", __func__ );
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	if (ts->use_irq)
 	{
@@ -466,9 +466,9 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 
 	msleep(20);
 
-	ret = regulator_disable(regulator_touch);
+	ret = vreg_disable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -481,7 +481,7 @@ static int synaptics_ts_suspend(struct i2c_client *client, pm_message_t mesg)
 static int synaptics_ts_resume(struct i2c_client *client)
 {
 	int ret=0;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 
 	printk("[TSP] %s+\n", __func__ );
 
@@ -499,11 +499,11 @@ static int synaptics_ts_resume(struct i2c_client *client)
 
 	gpio_set_value( VTOUCH_EN , 1 );	//I2C Pullup
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		return -EIO;
 	}
@@ -658,7 +658,7 @@ int firm_update( void )
 {
 	int ret = 0;
 	int cnt = 0;
-	struct regulator *regulator_touch;
+	struct vreg *vreg_touch;
 
 	printk(KERN_INFO "[TSP] %s, %d\n", __func__, __LINE__);
 
@@ -666,7 +666,7 @@ int firm_update( void )
 
 	firmware_ret_val = -1;
 
-	regulator_touch = regulator_get(NULL, "maxldo06");
+	vreg_touch = vreg_get(NULL, "maxldo06");
 
 	if (ts_global->use_irq)
 	{
@@ -674,9 +674,9 @@ int firm_update( void )
 		disable_irq(ts_global->client->irq);
 	}
 
-	ret = regulator_disable(regulator_touch);
+	ret = vreg_disable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 		ret=-EIO;
 	}
@@ -729,9 +729,9 @@ int firm_update( void )
 	gpio_set_value( TSP_INT , 1 ); 
 	gpio_set_value( VTOUCH_EN , 1 );	//I2C Pullup
 	
-	ret = regulator_enable(regulator_touch);
+	ret = vreg_enable(vreg_touch);
 	if (ret) {
-		printk(KERN_ERR "%s: regulator enable failed (%d)\n",
+		printk(KERN_ERR "%s: vreg enable failed (%d)\n",
 				__func__, ret);
 	}
 

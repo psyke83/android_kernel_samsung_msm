@@ -59,7 +59,7 @@
 #include <linux/clk.h>
 #include <mach/gpio.h>
 #include "msm_fb.h"
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include "lcdc_s6d_backlight.h"
 
 #include <linux/module.h>
@@ -474,38 +474,38 @@ static void spi_init(void)
 
 }
 
-#define REGULATOR_ENABLE	1
-#define REGULATOR_DISABLE	0
+#define VREG_ENABLE	1
+#define VREG_DISABLE	0
 
-static void s6d16a0x_regulator_config(int regulator_en)
+static void s6d16a0x_vreg_config(int vreg_en)
 {
 	int rc;
-	struct regulator *regulator_lcd =NULL;
+	struct vreg *vreg_lcd =NULL;
 
-	if (regulator_lcd == NULL) {
-		regulator_lcd = regulator_get(NULL, "maxldo04");
+	if (vreg_lcd == NULL) {
+		vreg_lcd = vreg_get(NULL, "maxldo04");
 
-		if (IS_ERR(regulator_lcd)) {
-			printk(KERN_ERR "%s: regulator_get(%s) failed (%ld)\n",
-				__func__, "MAXLDO 4", PTR_ERR(regulator_lcd));
+		if (IS_ERR(vreg_lcd)) {
+			printk(KERN_ERR "%s: vreg_get(%s) failed (%ld)\n",
+				__func__, "MAXLDO 4", PTR_ERR(vreg_lcd));
 			return;
 		}
 
-		rc = regulator_set_voltage(regulator_lcd, 3000000, 3000000);
+		rc = vreg_set_level(vreg_lcd, OUT3000mV);
 		if (rc) {
-			printk(KERN_ERR "%s: LCD set_voltage failed (%d)\n",
+			printk(KERN_ERR "%s: LCD set_level failed (%d)\n",
 				__func__, rc);
 		}
 	}
 
-	if (regulator_en) {
-		rc = regulator_enable(regulator_lcd);
+	if (vreg_en) {
+		rc = vreg_enable(vreg_lcd);
 		if (rc) {
 			printk(KERN_ERR "%s: LCD enable failed (%d)\n",
 				 __func__, rc);
 		}
 	} else {
-		rc = regulator_disable(regulator_lcd);
+		rc = vreg_disable(vreg_lcd);
 		if (rc) {
 			printk(KERN_ERR "%s: LCD disable failed (%d)\n",
 				 __func__, rc);
@@ -519,7 +519,7 @@ static void s6d16a0x_disp_powerup(void)
 
 	if (!s6d16a0x_state.disp_powered_up && !s6d16a0x_state.display_on) {
 
-		s6d16a0x_regulator_config(REGULATOR_ENABLE);
+		s6d16a0x_vreg_config(VREG_ENABLE);
 		msleep(10);
 		gpio_tlmm_config(GPIO_CFG(101, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
 		gpio_set_value(lcd_reset, 0);
@@ -550,7 +550,7 @@ static void s6d16a0x_disp_powerdown(void)
 		gpio_set_value(lcd_reset, 0);
 	}
 
-	s6d16a0x_regulator_config(REGULATOR_DISABLE);
+	s6d16a0x_vreg_config(VREG_DISABLE);
 	msleep(1);
 
 	s6d16a0x_state.disp_powered_up = FALSE;
@@ -902,7 +902,7 @@ static int __init lcdc_s6d16a0x_panel_init(void)
 	pinfo->lcdc.underflow_clr = 0xff;       /* blue */
 	pinfo->lcdc.hsync_skew = 0;
 	
-	s6d16a0x_regulator_config(REGULATOR_ENABLE);
+	s6d16a0x_vreg_config(VREG_ENABLE);
 
 	ret = platform_device_register(&this_device);
 	if (ret)

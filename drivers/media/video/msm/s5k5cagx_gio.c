@@ -25,7 +25,7 @@
 #include <mach/gpio.h>
 #include "s5k5cagx_gio.h"
 #include <mach/camera.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/io.h>
 #define SENSOR_DEBUG 0
 //#define CONFIG_LOAD_FILE
@@ -740,42 +740,39 @@ void sensor_rough_control(void __user *arg)
 }
 void cam_pw(int status)
 {
-	struct regulator *regulator_cam_out8;
-	struct regulator *regulator_cam_out9;
-	struct regulator *regulator_cam_out10;
-        //HW_REV_00 : ldo4, HW_REV_01 : ldo10
-	regulator_cam_out10 = regulator_get(NULL, "maxldo10"); // VCAM_AF_2.8V
-	regulator_cam_out8 = regulator_get(NULL, "maxldo08"); // VCAM_IO_2.6V
-	regulator_cam_out9 = regulator_get(NULL, "maxldo09"); // VCAMA_2.8V
+	struct vreg *vreg_cam_out8;
+	struct vreg *vreg_cam_out9;
+	struct vreg *vreg_cam_out10;
+        //HW_REV_00 : maxldo04, HW_REV_01 : maxldo10
+	vreg_cam_out10 = vreg_get(NULL, "maxldo10"); // VCAM_AF_2.8V
+	vreg_cam_out8 = vreg_get(NULL, "maxldo08"); // VCAM_IO_2.6V
+	vreg_cam_out9 = vreg_get(NULL, "maxldo09"); // VCAMA_2.8V
 	if(status == 1) //POWER ON
 	{
 		printk("[S5K5CAGX]Camera Sensor Power ON\n");
 		//gpio_direction_output(3, 0);
 		//mdelay(100);
-		regulator_set_voltage(regulator_cam_out10, 3000000, 3000000);
-		regulator_set_voltage(regulator_cam_out9,  2800000, 2800000);
-		regulator_set_voltage(regulator_cam_out8,  2800000, 2800000);
+		vreg_set_level(vreg_cam_out10, OUT3000mV);
+		vreg_set_level(vreg_cam_out9,  OUT2800mV);
+		vreg_set_level(vreg_cam_out8,  OUT2800mV);
 		gpio_set_value(3,1); //VDDD
 		mdelay(1);
-		regulator_enable(regulator_cam_out9);//VDDS
+		vreg_enable(vreg_cam_out9);//VDDS
 		mdelay(1);
-		regulator_enable(regulator_cam_out8);// VDDIO
+		vreg_enable(vreg_cam_out8);// VDDIO
 		mdelay(1);
-		regulator_enable(regulator_cam_out10);//AF
+		vreg_enable(vreg_cam_out10);//AF
 	}
 	else //POWER OFF
 	{
 		printk("[S5K5CAGX]Camera Sensor Power OFF\n");
-		regulator_set_voltage(regulator_cam_out10, 3000000, 3000000);
-		regulator_set_voltage(regulator_cam_out9,  2800000, 2800000);
-		regulator_set_voltage(regulator_cam_out8,  2800000, 2800000);
-		regulator_disable(regulator_cam_out8);// VDDS
+		vreg_disable(vreg_cam_out8);// VDDS
 		udelay(1);
-		regulator_disable(regulator_cam_out9); //VDDIO
+		vreg_disable(vreg_cam_out9); //VDDIO
 		udelay(1);
 		gpio_set_value(3,0); //VDDD
 		udelay(1);
-		regulator_disable(regulator_cam_out10); //AF
+		vreg_disable(vreg_cam_out10); //AF
 		/* cpufreq_direct_set_policy(0, "ondemand"); */
 	}
 }

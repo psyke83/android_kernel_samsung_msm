@@ -25,7 +25,7 @@
 #include <linux/timer.h>
 #include <linux/jiffies.h>
 #include <linux/wakelock.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 
 #include "gp2a.h"
 
@@ -57,7 +57,7 @@ static short proximity_value = 0;
 
 static struct wake_lock prx_wake_lock;
 
-static struct regulator *regulator_proximity;
+static struct vreg *vreg_proximity;
 
 static ktime_t timeA,timeB;
 #if USE_INTERRUPT
@@ -306,7 +306,7 @@ void gp2a_on(struct gp2a_data *gp2a, int type)
 
 	if( board_hw_revision < 3 )
 	{
-		regulator_enable(regulator_proximity); // voltage 
+		vreg_enable(vreg_proximity); // voltage 
 	}
 	else
 	{
@@ -365,7 +365,7 @@ void gp2a_off(struct gp2a_data *gp2a, int type)
 	
 	if( board_hw_revision < 3 )
 	{
-		regulator_disable(regulator_proximity); // voltage 
+		vreg_disable(vreg_proximity); // voltage 
 	}
 	else
 	{
@@ -478,15 +478,15 @@ static int gp2a_opt_probe(struct i2c_client *client,
 
 	if( board_hw_revision < 3 )
 	{
-		regulator_proximity = regulator_get(0, "maxldo19");
-		if (IS_ERR(regulator_proximity))
+		vreg_proximity = vreg_get(0, "maxldo19");
+		if (IS_ERR(vreg_proximity))
 		{	
 			printk("===== [PROXIMITY] proximity IS_ERR TEST =====\n");
-			return PTR_ERR(regulator_proximity);
+			return PTR_ERR(vreg_proximity);
 		}
 	
-	regulator_set_voltage(regulator_proximity, 3000000, 3000000); // set to 3.0V voltage 
-		regulator_enable(regulator_proximity); // voltage 
+	vreg_set_level(vreg_proximity, OUT3000mV); // set to 3.0V voltage
+		vreg_enable(vreg_proximity); // voltage 
 	}
 	else
 	{

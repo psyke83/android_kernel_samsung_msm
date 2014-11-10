@@ -27,7 +27,7 @@
 
 #include "s5k4ecgx.h"
 #include <mach/camera.h>
-#include <linux/regulator/consumer.h>
+#include <mach/vreg.h>
 #include <linux/io.h>
 
 #define SENSOR_DEBUG 0
@@ -1621,14 +1621,14 @@ void sensor_rough_control(void __user *arg)
 
 void cam_pw(int status)
 {
-	struct regulator *regulator_cam_out8;
-	struct regulator *regulator_cam_out9;
-	struct regulator *regulator_cam_out10;	
+	struct vreg *vreg_cam_out8;
+	struct vreg *vreg_cam_out9;
+	struct vreg *vreg_cam_out10;	
 
-        //HW_REV_00 : ldo4, HW_REV_01 : ldo10
-	regulator_cam_out10 = regulator_get(NULL, "maxldo10"); // VCAM_AF_2.8V
-	regulator_cam_out8 = regulator_get(NULL, "maxldo08"); // VCAM_IO_2.6V
-	regulator_cam_out9 = regulator_get(NULL, "maxldo09"); // VCAMA_2.8V
+        //HW_REV_00 : maxldo04, HW_REV_01 : maxldo10
+	vreg_cam_out10 = vreg_get(NULL, "maxldo10"); // VCAM_AF_2.8V
+	vreg_cam_out8 = vreg_get(NULL, "maxldo08"); // VCAM_IO_2.6V
+	vreg_cam_out9 = vreg_get(NULL, "maxldo09"); // VCAMA_2.8V
 
 	if(status == 1) //POWER ON
 	{
@@ -1637,17 +1637,17 @@ void cam_pw(int status)
 		gpio_set_value(1, 0);		
 		gpio_set_value(3, 0);	//gpio_direction_output(3, 0);
 		mdelay(100);
-		regulator_set_voltage(regulator_cam_out10, 2800000, 2800000);
-		regulator_set_voltage(regulator_cam_out9,  2800000, 2800000);
-		regulator_set_voltage(regulator_cam_out8,  2600000, 2600000);
+		vreg_set_level(vreg_cam_out10, OUT2800mV);
+		vreg_set_level(vreg_cam_out9,  OUT2800mV);
+		vreg_set_level(vreg_cam_out8,  OUT2600mV);
 
 		gpio_set_value(3, 1); //VDDD
 		mdelay(1);
-		regulator_enable(regulator_cam_out9);//VDDS
+		vreg_enable(vreg_cam_out9);//VDDS
 		mdelay(1);
-		regulator_enable(regulator_cam_out8);// VDDIO
+		vreg_enable(vreg_cam_out8);// VDDIO
 		mdelay(1);
-		regulator_enable(regulator_cam_out10);//AF
+		vreg_enable(vreg_cam_out10);//AF
 #ifdef WORKAROUND_FOR_LOW_SPEED_I2C
 		//after power on, below function will be called.
 		pcam_msm_i2c_pwr_mgmt(s5k4ecgx_client->adapter, 1);
@@ -1667,17 +1667,14 @@ void cam_pw(int status)
 		//before power off, below function will be called.
 		pcam_msm_i2c_pwr_mgmt(s5k4ecgx_client->adapter, 0); 
 #endif		
-		regulator_set_voltage(regulator_cam_out10, 2800000, 2800000);
-		regulator_set_voltage(regulator_cam_out9,  2800000, 2800000);
-		regulator_set_voltage(regulator_cam_out8,  2600000, 2600000);
 		s5k4ecgx_status.power_on = false;
-		regulator_disable(regulator_cam_out8);// VDDS
+		vreg_disable(vreg_cam_out8);// VDDS
 		udelay(1);
-		regulator_disable(regulator_cam_out9); //VDDIO
+		vreg_disable(vreg_cam_out9); //VDDIO
 		udelay(1);
 		gpio_set_value(3,0); //VDDD
 		udelay(1);
-		regulator_disable(regulator_cam_out10); //AF
+		vreg_disable(vreg_cam_out10); //AF
 		gpio_set_value(0, 0);
 		gpio_set_value(1, 0);		
 	//	cpufreq_direct_set_policy(0, "ondemand");
