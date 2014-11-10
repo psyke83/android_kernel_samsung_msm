@@ -664,7 +664,7 @@ static void lcdc_ta8566_set_backlight(struct msm_fb_data_type *mfd)
 	else
 		tune_level = bl_level;
 
-	DPRINT("%s:%d,%d\n", __func__, bl_level, tune_level);	
+	//DPRINT("%s:%d,%d\n", __func__, bl_level, tune_level);	
 
 	if (tune_level && tsp_off)
 	{
