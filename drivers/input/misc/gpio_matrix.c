@@ -548,9 +548,9 @@ static int gpio_keypad_request_irqs(struct gpio_kp *kp)
 		pr_err("gpiomatrix: set_irq_wake failed for input %d, "	"irq %d\n", mi->input_gpios[i], irq);
 	}
 #elif defined (CONFIG_MACH_CALLISTO)
-	err = enable_irq_wake(gpio_to_irq(GPIO_KBR5), 1);	// hsil
-	err = enable_irq_wake(gpio_to_irq(GPIO_KBR6), 1);	// hsil
-	err = enable_irq_wake(gpio_to_irq(GPIO_VOL_UP), 1);	// hsil
+	err = enable_irq_wake(gpio_to_irq(GPIO_KBR5));	// hsil
+	err = enable_irq_wake(gpio_to_irq(GPIO_KBR6));	// hsil
+	err = enable_irq_wake(gpio_to_irq(GPIO_VOL_UP));	// hsil
 #endif
 	
 //#ifndef CONFIG_MACH_LUCAS
