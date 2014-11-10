@@ -1199,12 +1199,12 @@ int calculate_batt_voltage(int vbatt_adc)
 			if( prevVal < (vbatt_adc-BATT_CAL_CHG))
 			{	
 				vbatt_adc = vbatt_adc-BATT_CAL_CHG;		
-				printk("[Battery] vbatt_adc-BATT_CAL_CHG \n");
+				DBG("[Battery] vbatt_adc-BATT_CAL_CHG \n");
 			}	
 			else
 			{
 				vbatt_adc = prevVal;
-				printk("[Battery] chg_en & prevVal \n");
+				DBG("[Battery] chg_en & prevVal \n");
 			}	
 		}
 		else
