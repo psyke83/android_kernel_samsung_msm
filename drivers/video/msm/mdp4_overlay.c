@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1927,7 +1927,8 @@ void mdp4_mixer_blend_setup(int mixer)
 		if (s_pipe->pipe_type == OVERLAY_TYPE_VIDEO &&
 			((s_pipe->op_mode & MDP4_OP_SCALEY_EN) ||
 			(s_pipe->op_mode & MDP4_OP_SCALEX_EN)) &&
-			!(s_pipe->op_mode & MDP4_OP_SCALEY_PIXEL_RPT))
+			!(s_pipe->op_mode & (MDP4_OP_SCALEX_PIXEL_RPT |
+						MDP4_OP_SCALEY_PIXEL_RPT)))
 			alpha_drop = 1;
 
 		d_pipe = mdp4_background_layer(mixer, s_pipe);
@@ -2035,7 +2036,9 @@ void mdp4_mixer_blend_setup(int mixer)
 		outpdw(overlay_base + off + 0x108, blend->fg_alpha);
 		outpdw(overlay_base + off + 0x10c, blend->bg_alpha);
 
-		if (mdp_rev >= MDP_REV_42)
+		if (mdp_rev >= MDP_REV_42 ||
+			ctrl->panel_mode & MDP4_PANEL_MDDI ||
+			 ctrl->panel_mode & MDP4_PANEL_DSI_CMD)
 			outpdw(overlay_base + off + 0x104, blend->op);
 
 		outpdw(overlay_base + (off << 5) + 0x1004, blend->co3_sel);
@@ -2553,6 +2556,22 @@ static int mdp4_calc_pipe_mdp_clk(struct msm_fb_data_type *mfd,
 		rst *= xscale;
 
 	rst >>= shift;
+
+	/*
+	 * There is one special case for the panels that have low
+	 * v_back_porch (<=4), mdp clk should be fast enough to buffer
+	 * 4 lines input during back porch time if scaling is
+	 * required(FIR).
+	 */
+	if ((mfd->panel_info.lcdc.v_back_porch <= 4) &&
+	    (pipe->src_h != pipe->dst_h)) {
+		u32 clk = 0;
+		clk = 4 * (pclk >> shift) / mfd->panel_info.lcdc.v_back_porch;
+		clk <<= shift;
+		pr_debug("%s: mdp clk rate %d based on low vbp %d\n",
+			 __func__, clk, mfd->panel_info.lcdc.v_back_porch);
+		rst = (rst > clk) ? rst : clk;
+	}
 
 	/*
 	 * If the calculated mdp clk is less than panel pixel clk,
@@ -3662,4 +3681,3 @@ done:
 	mutex_unlock(&mfd->dma->ov_mutex);
 	return err;
 }
-
